@@ -1,0 +1,21 @@
+# LangChain 1.0 核心依赖
+langchain==1.0.1
+langchain-core==1.0.5
+langchain-openai==1.0.3
+langchain-anthropic==1.1.0
+
+# 核心依赖
+openai==2.8.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.1.0
+loguru==0.7.3
+
+# 网页处理
+DrissionPage==4.1.1.2
+beautifulsoup4==4.12.3
+lxml==5.3.0
+
+# 工具库
+requests==2.32.3
+

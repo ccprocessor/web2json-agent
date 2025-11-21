@@ -1,0 +1,8 @@
+# URL列表示例
+# 每行一个URL，以 # 开头的行为注释
+
+# StackOverflow Blog 示例
+https://stackoverflow.blog/2025/10/15/secure-coding-in-javascript/
+https://stackoverflow.blog/2024/12/18/you-should-keep-a-developer-changelog/
+https://stackoverflow.blog/2024/11/13/your-docs-are-your-infrastructure/
+
