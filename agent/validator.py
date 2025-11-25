@@ -4,9 +4,9 @@ Agent 验证器
 """
 import sys
 import os
+import json
 import importlib.util
 from typing import Dict, List
-from pathlib import Path
 from loguru import logger
 from tools import get_webpage_source
 from langchain_openai import ChatOpenAI
@@ -25,6 +25,161 @@ class AgentValidator:
             temperature=settings.agent_temperature
         )
     
+    def validate_parser_with_groundtruth(self, parser_path: str, rounds: List[Dict], output_dir: str = "output") -> Dict:
+        """
+        基于 groundtruth 验证解析器
+
+        使用图片识别的 JSON Schema 作为 groundtruth，对比解析器生成的 JSON 与 groundtruth 的准确率
+
+        Args:
+            parser_path: 解析器代码路径
+            rounds: 执行轮次列表（包含每一轮的 groundtruth_schema 和 html）
+            output_dir: 输出目录
+
+        Returns:
+            验证结果
+        """
+        logger.info(f"基于 groundtruth 验证解析器: {parser_path}")
+
+        results = {
+            'parser_path': parser_path,
+            'tests': [],
+            'success_rate': 0.0,
+            'passed': False,
+            'issues': [],
+            'accuracy_details': {}
+        }
+
+        # 加载解析器
+        try:
+            parser_class = self._load_parser(parser_path)
+        except Exception as e:
+            logger.error(f"加载解析器失败: {str(e)}")
+            results['issues'].append(f"加载失败: {str(e)}")
+            return results
+
+        # 对每一轮进行验证
+        total_accuracy = 0
+        valid_rounds = 0
+
+        for round_result in rounds:
+            if not round_result.get('success'):
+                continue
+
+            round_num = round_result['round']
+            html = round_result['html']
+            groundtruth_schema = round_result.get('groundtruth_schema', {})
+
+            if not groundtruth_schema:
+                logger.warning(f"第 {round_num} 轮没有 groundtruth_schema，跳过")
+                continue
+
+            logger.info(f"  验证第 {round_num} 轮...")
+
+            test_result = self._compare_with_groundtruth(
+                parser_class,
+                html,
+                groundtruth_schema,
+                round_num
+            )
+
+            results['tests'].append(test_result)
+            results['accuracy_details'][f'round_{round_num}'] = {
+                'accuracy': test_result['accuracy'],
+                'matched_fields': test_result['matched_fields'],
+                'missing_fields': test_result['missing_fields'],
+                'extra_fields': test_result['extra_fields']
+            }
+
+            total_accuracy += test_result['accuracy']
+            valid_rounds += 1
+
+        # 计算平均成功率
+        if valid_rounds > 0:
+            results['success_rate'] = total_accuracy / valid_rounds
+
+        results['passed'] = results['success_rate'] >= settings.success_threshold
+
+        if results['passed']:
+            logger.success(f"验证通过! 平均准确率: {results['success_rate']:.1%}")
+        else:
+            logger.warning(f"验证未通过. 平均准确率: {results['success_rate']:.1%}, 阈值: {settings.success_threshold:.1%}")
+
+        return results
+
+    def _compare_with_groundtruth(self, parser, html: str, groundtruth_schema: Dict, round_num: int) -> Dict:
+        """
+        对比解析结果与 groundtruth
+
+        Args:
+            parser: 解析器实例
+            html: HTML 内容
+            groundtruth_schema: 从图片识别得到的 groundtruth JSON Schema
+            round_num: 轮次号
+
+        Returns:
+            对比结果
+        """
+        result = {
+            'round': round_num,
+            'accuracy': 0.0,
+            'matched_fields': [],
+            'missing_fields': [],
+            'extra_fields': [],
+            'error': None,
+            'details': ''
+        }
+
+        try:
+            # 使用解析器解析 HTML
+            predicted_data = parser.parse(html)
+
+            if not predicted_data or not isinstance(predicted_data, dict):
+                result['error'] = "解析结果为空或格式错误"
+                result['details'] = f"返回类型: {type(predicted_data)}"
+                logger.warning(f"  ✗ 第 {round_num} 轮解析失败: {result['error']}")
+                return result
+
+            # 提取 groundtruth 中的字段名
+            groundtruth_fields = set(groundtruth_schema.keys())
+            # 提取预测数据中的字段名
+            predicted_fields = set(predicted_data.keys())
+
+            # 计算匹配、缺失和额外的字段
+            matched = groundtruth_fields & predicted_fields
+            missing = groundtruth_fields - predicted_fields
+            extra = predicted_fields - groundtruth_fields
+
+            result['matched_fields'] = list(matched)
+            result['missing_fields'] = list(missing)
+            result['extra_fields'] = list(extra)
+
+            # 计算准确率（匹配字段数 / groundtruth 字段数）
+            if groundtruth_fields:
+                result['accuracy'] = len(matched) / len(groundtruth_fields)
+            else:
+                result['accuracy'] = 0.0
+
+            # 详细信息
+            details = [
+                f"预测字段数: {len(predicted_fields)}",
+                f"Groundtruth 字段数: {len(groundtruth_fields)}",
+                f"匹配字段: {len(matched)} {list(matched)[:3]}{'...' if len(matched) > 3 else ''}",
+                f"缺失字段: {len(missing)} {list(missing)[:3]}{'...' if len(missing) > 3 else ''}",
+                f"额外字段: {len(extra)} {list(extra)[:3]}{'...' if len(extra) > 3 else ''}",
+            ]
+            result['details'] = " | ".join(details)
+
+            logger.success(f"  ✓ 第 {round_num} 轮准确率: {result['accuracy']:.1%} - {result['details']}")
+
+        except Exception as e:
+            import traceback
+            result['error'] = str(e)
+            result['details'] = traceback.format_exc()
+            logger.error(f"  ✗ 第 {round_num} 轮验证失败: {str(e)}")
+
+        return result
+
     def validate_parser(self, parser_path: str, test_urls: List[str]) -> Dict:
         """
         验证解析器
@@ -139,8 +294,8 @@ class AgentValidator:
         issues = []
         
         # 分析失败的测试
-        failed_tests = [t for t in validation_result['test_results'] if not t['success']]
-        
+        failed_tests = [t for t in validation_result.get('tests', []) if t.get('error')]
+
         if not failed_tests:
             return issues
         
@@ -152,8 +307,8 @@ class AgentValidator:
         
         # 生成诊断
         for error, count in error_types.items():
-            issues.append(f"{count} 个URL出现错误: {error}")
-        
+            issues.append(f"{count} 个轮次出现错误: {error}")
+
         return issues
     
     def suggest_improvements(self, validation_result: Dict, parser_code: str) -> str:

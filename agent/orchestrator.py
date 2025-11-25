@@ -43,6 +43,12 @@ class ParserAgent:
         """
         生成解析器
         
+        流程：
+        1. 规划：分析URL并制定执行计划
+        2. 执行：多轮迭代执行（获取HTML -> 截图 -> 提取Schema -> 生成/优化代码）
+        3. 验证：基于groundtruth对比验证解析器准确率
+        4. 总结：生成执行总结
+
         Args:
             urls: URL列表
             domain: 域名（可选）
@@ -61,7 +67,7 @@ class ParserAgent:
         plan = self.planner.create_plan(urls, domain, layout_type)
         
         # 第二步：执行
-        logger.info("\n[步骤 2/4] 执行计划")
+        logger.info("\n[步骤 2/4] 执行计划 - 多轮迭代")
         execution_result = self.executor.execute_plan(plan)
         
         if not execution_result['success']:
@@ -72,13 +78,17 @@ class ParserAgent:
                 'execution_result': execution_result
             }
         
-        # 第三步：验证（可选）
+        # 第三步：验证（基于groundtruth对比）
         validation_result = None
         if validate:
-            logger.info("\n[步骤 3/4] 验证解析器")
+            logger.info("\n[步骤 3/4] 验证解析器 - 基于groundtruth对比")
             parser_path = execution_result['final_parser']['parser_path']
-            validation_result = self.validator.validate_parser(parser_path, urls)
-            
+            # 使用执行轮次数据进行 groundtruth 验证
+            validation_result = self.validator.validate_parser_with_groundtruth(
+                parser_path,
+                execution_result['rounds']
+            )
+
             # 如果验证未通过，尝试迭代优化
             if not validation_result['passed']:
                 logger.warning("初次验证未通过，尝试优化...")
@@ -118,7 +128,7 @@ class ParserAgent:
         策略：
         1. 分析验证失败的原因
         2. 使用LLM修复代码
-        3. 重新验证
+        3. 重新验证（基于groundtruth对比）
         4. 重复直到达到成功率阈值或最大迭代次数
         """
         max_iterations = plan.get('max_iterations', settings.max_iterations)
@@ -131,8 +141,8 @@ class ParserAgent:
         for iteration in range(1, max_iterations):
             logger.info(f"\n{'='*70}")
             logger.info(f"优化迭代 {iteration}/{max_iterations-1}")
-            logger.info(f"当前成功率: {current_validation['success_rate']:.1%}")
-            logger.info(f"目标成功率: {settings.success_threshold:.1%}")
+            logger.info(f"当前准确率: {current_validation['success_rate']:.1%}")
+            logger.info(f"目标准确率: {settings.success_threshold:.1%}")
             logger.info(f"{'='*70}")
 
             # 如果已经达到成功率阈值，停止迭代
@@ -172,32 +182,32 @@ class ParserAgent:
 
             logger.success(f"代码已更新: {current_parser_path}")
 
-            # 重新验证
+            # 重新验证（基于groundtruth对比）
             logger.info("重新验证修复后的代码...")
-            new_validation = self.validator.validate_parser(
+            new_validation = self.validator.validate_parser_with_groundtruth(
                 current_parser_path,
-                plan.get('sample_urls', [])
+                execution_result['rounds']
             )
 
             # 检查是否有改进
             old_rate = current_validation['success_rate']
             new_rate = new_validation['success_rate']
 
-            logger.info(f"成功率变化: {old_rate:.1%} -> {new_rate:.1%}")
+            logger.info(f"准确率变化: {old_rate:.1%} -> {new_rate:.1%}")
 
             if new_rate > old_rate:
-                logger.success(f"✓ 成功率提升了 {(new_rate - old_rate):.1%}")
+                logger.success(f"✓ 准确率提升了 {(new_rate - old_rate):.1%}")
                 current_validation = new_validation
                 current_code = fixed_code
 
                 # 更新execution_result中的代码
                 execution_result['final_parser']['code'] = fixed_code
             elif new_rate == old_rate:
-                logger.warning("成功率没有变化")
+                logger.warning("准确率没有变化")
                 current_validation = new_validation
                 current_code = fixed_code
             else:
-                logger.error(f"✗ 成功率下降了 {(old_rate - new_rate):.1%}，回滚修改")
+                logger.error(f"✗ 准确率下降了 {(old_rate - new_rate):.1%}，回滚修改")
                 # 回滚代码
                 with open(current_parser_path, 'w', encoding='utf-8') as f:
                     f.write(current_code)
@@ -227,23 +237,40 @@ class ParserAgent:
         lines.append("执行总结")
         lines.append("="*70)
         
-        # 样本处理结果
-        samples = execution_result.get('samples', [])
-        success_samples = [s for s in samples if s.get('success')]
-        lines.append(f"\n样本处理: {len(success_samples)}/{len(samples)} 成功")
-        
+        # 多轮执行结果
+        rounds = execution_result.get('rounds', [])
+        success_rounds = [r for r in rounds if r.get('success')]
+        lines.append(f"\n多轮执行: {len(success_rounds)}/{len(rounds)} 轮成功")
+
+        for round_result in success_rounds:
+            round_num = round_result['round']
+            schema_fields = len(round_result.get('merged_schema', {}))
+            lines.append(f"  第 {round_num} 轮: URL={round_result['url']}, Schema字段数={schema_fields}")
+
         # 解析器生成结果
         if execution_result.get('final_parser'):
             parser_path = execution_result['final_parser']['parser_path']
-            lines.append(f"解析器路径: {parser_path}")
-        
+            lines.append(f"\n最终解析器路径: {parser_path}")
+            merged_schema = execution_result.get('rounds', [])
+            if merged_schema and merged_schema[-1].get('success'):
+                final_schema_size = len(merged_schema[-1].get('merged_schema', {}))
+                lines.append(f"最终Schema字段数: {final_schema_size}")
+
         # 验证结果
         if validation_result:
-            success_rate = validation_result.get('success_rate', 0)
+            accuracy = validation_result.get('success_rate', 0)
             passed = validation_result.get('passed', False)
             lines.append(f"\n验证结果: {'通过' if passed else '未通过'}")
-            lines.append(f"成功率: {success_rate:.1%}")
-        
+            lines.append(f"平均准确率: {accuracy:.1%}")
+
+            # 显示每一轮的准确率
+            accuracy_details = validation_result.get('accuracy_details', {})
+            if accuracy_details:
+                lines.append("  各轮准确率：")
+                for round_key, details in accuracy_details.items():
+                    round_acc = details.get('accuracy', 0)
+                    lines.append(f"    {round_key}: {round_acc:.1%}")
+
         lines.append("="*70)
         
         summary = "\n".join(lines)
