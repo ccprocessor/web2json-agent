@@ -2,6 +2,9 @@
 Agent 执行器
 负责执行具体的任务步骤
 """
+import json
+import sys
+import importlib.util
 from typing import Dict, List
 from pathlib import Path
 from loguru import logger
@@ -19,12 +22,17 @@ class AgentExecutor:
     def __init__(self, output_dir: str = "output"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # 创建子目录
         self.screenshots_dir = self.output_dir / "screenshots"
         self.parsers_dir = self.output_dir / "parsers"
+        self.html_dir = self.output_dir / "html"
+        self.json_dir = self.output_dir / "json"
+
         self.screenshots_dir.mkdir(exist_ok=True)
         self.parsers_dir.mkdir(exist_ok=True)
+        self.html_dir.mkdir(exist_ok=True)
+        self.json_dir.mkdir(exist_ok=True)
     
     def execute_plan(self, plan: Dict) -> Dict:
         """
@@ -35,19 +43,19 @@ class AgentExecutor:
 
         Args:
             plan: 执行计划
-        
+
         Returns:
             执行结果
         """
         logger.info("开始执行计划...")
-        
+
         results = {
             'plan': plan,
             'rounds': [],  # 每一轮的结果
             'final_parser': None,
             'success': False,
         }
-        
+
         # 初始化
         merged_schema = {}
         current_parser_code = None
@@ -83,6 +91,13 @@ class AgentExecutor:
                 if round_num == 1:
                     # 第一轮失败则退出
                     break
+
+        # 使用最终解析器解析所有HTML并生成JSON
+        if results['success'] and results['final_parser']:
+            logger.info(f"\n{'='*70}")
+            logger.info("使用最终解析器解析所有HTML")
+            logger.info(f"{'='*70}")
+            self._parse_all_html_with_final_parser(results)
 
         return results
     
@@ -123,12 +138,19 @@ class AgentExecutor:
         
         try:
             # 1. 获取HTML源码
-            logger.info(f"  [1/4] 获取HTML源码...")
+            logger.info(f"  [1/5] 获取HTML源码...")
             result['html'] = get_webpage_source.invoke({"url": url})
             logger.success(f"  ✓ HTML源码已获取")
 
+            # 保存HTML源码
+            html_path = self.html_dir / f"round_{round_num}.html"
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(result['html'])
+            result['html_path'] = str(html_path)
+            logger.success(f"  ✓ HTML已保存: {html_path}")
+
             # 2. 截图
-            logger.info(f"  [2/4] 截图...")
+            logger.info(f"  [2/5] 截图...")
             screenshot_path = str(self.screenshots_dir / f"round_{round_num}.png")
             result['screenshot'] = capture_webpage_screenshot.invoke({
                 "url": url,
@@ -137,7 +159,7 @@ class AgentExecutor:
             logger.success(f"  ✓ 截图已保存: {screenshot_path}")
 
             # 3. 提取JSON Schema（作为groundtruth）
-            logger.info(f"  [3/4] 提取JSON Schema...")
+            logger.info(f"  [3/5] 提取JSON Schema...")
             this_round_schema = extract_json_from_image.invoke({
                 "image_path": result['screenshot']
             })
@@ -157,7 +179,7 @@ class AgentExecutor:
                 logger.info(f"  第 {round_num} 轮: 合并schema，现共 {len(result['merged_schema'])} 个字段")
 
             # 4. 生成/优化解析代码
-            logger.info(f"  [4/4] 生成/优化解析代码...")
+            logger.info(f"  [4/5] 生成/优化解析代码...")
             parser_result = self._generate_or_optimize_parser(
                 html_content=result['html'],
                 target_json=result['merged_schema'],
@@ -166,9 +188,16 @@ class AgentExecutor:
                 parser_path=parser_path
             )
 
-            result['parser_path'] = parser_result['parser_path']
+            # 保存当前轮的解析器代码
+            round_parser_path = self.parsers_dir / f"round_{round_num}.py"
+            with open(round_parser_path, 'w', encoding='utf-8') as f:
+                f.write(parser_result['code'])
+            logger.success(f"  ✓ 解析器已保存: {round_parser_path}")
+
+            result['parser_path'] = str(round_parser_path)
             result['parser_code'] = parser_result['code']
             result['parser_result'] = parser_result
+            result['parser_result']['parser_path'] = str(round_parser_path)  # 更新路径
             result['success'] = True
             logger.success(f"  ✓ 解析代码已生成/优化")
             logger.success(f"第 {round_num} 轮处理完成")
@@ -307,3 +336,73 @@ class AgentExecutor:
                 logger.debug(f"  可选字段: {field_name} (出现 {count}/{len(samples)} 次)")
 
         return merged_schema
+
+    def _parse_all_html_with_final_parser(self, results: Dict) -> None:
+        """
+        使用最终解析器解析所有HTML文件并生成JSON
+
+        Args:
+            results: 执行结果，包含所有轮次和最终解析器
+        """
+        final_parser_path = results['final_parser']['parser_path']
+
+        try:
+            # 加载最终解析器
+            logger.info(f"  加载最终解析器: {final_parser_path}")
+            parser = self._load_parser(final_parser_path)
+
+            # 遍历所有轮次的HTML
+            for round_result in results['rounds']:
+                if not round_result.get('success'):
+                    continue
+
+                round_num = round_result['round']
+                html_content = round_result.get('html')
+                html_path = round_result.get('html_path')
+
+                if not html_content:
+                    logger.warning(f"  第 {round_num} 轮没有HTML内容，跳过")
+                    continue
+
+                logger.info(f"  解析第 {round_num} 轮的HTML...")
+
+                try:
+                    # 使用解析器解析HTML
+                    parsed_data = parser.parse(html_content)
+
+                    # 保存JSON
+                    json_path = self.json_dir / f"round_{round_num}.json"
+                    with open(json_path, 'w', encoding='utf-8') as f:
+                        json.dump(parsed_data, f, ensure_ascii=False, indent=2)
+
+                    logger.success(f"  ✓ JSON已保存: {json_path}")
+                    logger.info(f"     提取了 {len(parsed_data)} 个字段")
+
+                    # 将JSON路径添加到结果中
+                    round_result['json_path'] = str(json_path)
+                    round_result['parsed_data'] = parsed_data
+
+                except Exception as e:
+                    logger.error(f"  ✗ 第 {round_num} 轮解析失败: {str(e)}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
+
+            logger.success("所有HTML解析完成")
+
+        except Exception as e:
+            logger.error(f"加载最终解析器失败: {str(e)}")
+            import traceback
+            logger.debug(traceback.format_exc())
+
+    def _load_parser(self, parser_path: str):
+        """动态加载解析器类"""
+        spec = importlib.util.spec_from_file_location("parser_module", parser_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["parser_module"] = module
+        spec.loader.exec_module(module)
+
+        # 获取WebPageParser类
+        if hasattr(module, 'WebPageParser'):
+            return module.WebPageParser()
+        else:
+            raise Exception("解析器中未找到WebPageParser类")
