@@ -42,10 +42,12 @@ class ParserAgent:
     ) -> Dict:
         """
         生成解析器
-        
+
         流程：
         1. 规划：分析URL并制定执行计划
-        2. 执行：多轮迭代执行（获取HTML -> 截图 -> 提取Schema -> 生成/优化代码）
+        2. 执行：
+           - 阶段1: Schema迭代（前N个URL）- 提取并优化Schema
+           - 阶段2: 代码迭代（后M个URL）- 生成并优化解析代码
         3. 验证：基于groundtruth对比验证解析器准确率
         4. 总结：生成执行总结
 
@@ -54,22 +56,22 @@ class ParserAgent:
             domain: 域名（可选）
             layout_type: 布局类型（可选）
             validate: 是否验证生成的代码
-        
+
         Returns:
             生成结果
         """
         logger.info("="*70)
         logger.info("开始生成解析器")
         logger.info("="*70)
-        
+
         # 第一步：规划
         logger.info("\n[步骤 1/4] 任务规划")
         plan = self.planner.create_plan(urls, domain, layout_type)
-        
-        # 第二步：执行
-        logger.info("\n[步骤 2/4] 执行计划 - 多轮迭代")
+
+        # 第二步：执行（两阶段迭代）
+        logger.info("\n[步骤 2/4] 执行计划 - 两阶段迭代")
         execution_result = self.executor.execute_plan(plan)
-        
+
         if not execution_result['success']:
             logger.error("执行失败，无法生成解析器")
             return {
@@ -77,35 +79,52 @@ class ParserAgent:
                 'error': '执行失败',
                 'execution_result': execution_result
             }
-        
+
         # 第三步：验证（基于groundtruth对比）
         validation_result = None
         if validate:
             logger.info("\n[步骤 3/4] 验证解析器 - 基于groundtruth对比")
             parser_path = execution_result['final_parser']['parser_path']
-            # 使用执行轮次数据进行 groundtruth 验证
-            validation_result = self.validator.validate_parser_with_groundtruth(
-                parser_path,
-                execution_result['rounds']
+
+            # 合并两个阶段的轮次数据用于验证
+            all_rounds = (
+                execution_result['schema_phase']['rounds'] +
+                execution_result['code_phase']['rounds']
             )
 
-            # 如果验证未通过，尝试迭代优化
-            if not validation_result['passed']:
-                logger.warning("初次验证未通过，尝试优化...")
-                validation_result = self._iterate_and_improve(
-                    execution_result,
-                    validation_result,
-                    plan
+            # 检查是否有可用的 groundtruth
+            has_groundtruth = any(
+                r.get('success') and r.get('groundtruth_schema')
+                for r in all_rounds
+            )
+
+            if not has_groundtruth:
+                logger.warning("没有可用的 groundtruth 数据，跳过验证步骤")
+                logger.info("提示：当前版本Schema迭代阶段不生成groundtruth，验证功能暂时禁用")
+            else:
+                # 使用合并后的轮次数据进行 groundtruth 验证
+                validation_result = self.validator.validate_parser_with_groundtruth(
+                    parser_path,
+                    all_rounds
                 )
-        
+
+                # 如果验证未通过，尝试迭代优化
+                if not validation_result['passed']:
+                    logger.warning("初次验证未通过，尝试优化...")
+                    validation_result = self._iterate_and_improve(
+                        execution_result,
+                        validation_result,
+                        plan
+                    )
+
         # 第四步：总结
         logger.info("\n[步骤 4/4] 生成总结")
         summary = self._generate_summary(execution_result, validation_result)
-        
+
         logger.info("="*70)
         logger.success("解析器生成完成!")
         logger.info("="*70)
-        
+
         return {
             'success': True,
             'plan': plan,
@@ -113,7 +132,7 @@ class ParserAgent:
             'validation_result': validation_result,
             'summary': summary,
             'parser_path': execution_result['final_parser']['parser_path'],
-            'config_path': execution_result['final_parser']['config_path'],
+            'config_path': execution_result['final_parser'].get('config_path'),
         }
     
     def _iterate_and_improve(
@@ -236,25 +255,30 @@ class ParserAgent:
         lines.append("\n" + "="*70)
         lines.append("执行总结")
         lines.append("="*70)
-        
-        # 多轮执行结果
-        rounds = execution_result.get('rounds', [])
-        success_rounds = [r for r in rounds if r.get('success')]
-        lines.append(f"\n多轮执行: {len(success_rounds)}/{len(rounds)} 轮成功")
 
-        for round_result in success_rounds:
-            round_num = round_result['round']
-            schema_fields = len(round_result.get('merged_schema', {}))
-            lines.append(f"  第 {round_num} 轮: URL={round_result['url']}, Schema字段数={schema_fields}")
+        # Schema迭代阶段结果
+        schema_phase = execution_result.get('schema_phase', {})
+        schema_rounds = schema_phase.get('rounds', [])
+        schema_success_rounds = [r for r in schema_rounds if r.get('success')]
+        lines.append(f"\nSchema迭代阶段: {len(schema_success_rounds)}/{len(schema_rounds)} 轮成功")
+
+        if schema_phase.get('final_schema'):
+            final_schema_size = len(schema_phase['final_schema'])
+            lines.append(f"  最终Schema字段数: {final_schema_size}")
+
+        if schema_phase.get('final_schema_path'):
+            lines.append(f"  最终Schema路径: {schema_phase['final_schema_path']}")
+
+        # 代码迭代阶段结果
+        code_phase = execution_result.get('code_phase', {})
+        code_rounds = code_phase.get('rounds', [])
+        code_success_rounds = [r for r in code_rounds if r.get('success')]
+        lines.append(f"\n代码迭代阶段: {len(code_success_rounds)}/{len(code_rounds)} 轮成功")
 
         # 解析器生成结果
         if execution_result.get('final_parser'):
             parser_path = execution_result['final_parser']['parser_path']
             lines.append(f"\n最终解析器路径: {parser_path}")
-            merged_schema = execution_result.get('rounds', [])
-            if merged_schema and merged_schema[-1].get('success'):
-                final_schema_size = len(merged_schema[-1].get('merged_schema', {}))
-                lines.append(f"最终Schema字段数: {final_schema_size}")
 
         # 验证结果
         if validation_result:
@@ -272,9 +296,9 @@ class ParserAgent:
                     lines.append(f"    {round_key}: {round_acc:.1%}")
 
         lines.append("="*70)
-        
+
         summary = "\n".join(lines)
         logger.info(summary)
-        
+
         return summary
 

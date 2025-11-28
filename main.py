@@ -65,14 +65,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
+  # 从文件读取URL列表（推荐）
+  python main.py -f urls.txt -o output/blog
+
   # 单个URL（测试用）
   python main.py https://example.com/article
 
   # 多个URL
   python main.py https://example.com/article1 https://example.com/article2
-
-  # 从文件读取URL列表（推荐）
-  python main.py -f urls.txt
 
   # 指定输出目录和页面类型
   python main.py -f urls.txt -o output/blog -t blog_article

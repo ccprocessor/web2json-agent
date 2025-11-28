@@ -67,7 +67,24 @@ class AgentValidator:
                 continue
 
             round_num = round_result['round']
-            html = round_result['html']
+
+            # 获取HTML内容（可能在不同字段中）
+            html = round_result.get('html')
+            html_path = round_result.get('html_path')
+
+            # 如果没有直接的HTML，尝试从文件读取
+            if not html and html_path:
+                try:
+                    with open(html_path, 'r', encoding='utf-8') as f:
+                        html = f.read()
+                except Exception as e:
+                    logger.warning(f"第 {round_num} 轮无法读取HTML: {e}")
+                    continue
+
+            if not html:
+                logger.warning(f"第 {round_num} 轮没有HTML内容，跳过")
+                continue
+
             groundtruth_schema = round_result.get('groundtruth_schema', {})
 
             if not groundtruth_schema:

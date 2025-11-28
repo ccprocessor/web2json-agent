@@ -45,6 +45,11 @@ class Settings(BaseModel):
     success_threshold: float = Field(default_factory=lambda: float(os.getenv("SUCCESS_THRESHOLD", "0.8")))
     min_sample_size: int = Field(default_factory=lambda: int(os.getenv("MIN_SAMPLE_SIZE", "2")))
 
+    # Schema迭代阶段的URL数量
+    schema_iteration_url_count: int = Field(default_factory=lambda: int(os.getenv("SCHEMA_ITERATION_URL_COUNT", "3")))
+    # 代码迭代阶段的URL数量
+    code_iteration_url_count: int = Field(default_factory=lambda: int(os.getenv("CODE_ITERATION_URL_COUNT", "2")))
+
     # ============================================
     # 浏览器配置
     # ============================================
