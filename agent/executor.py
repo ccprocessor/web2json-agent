@@ -2,20 +2,21 @@
 Agent 执行器
 负责执行具体的任务步骤
 """
+import importlib.util
 import json
 import sys
-import importlib.util
-from typing import Dict, List
 from pathlib import Path
+from typing import Dict, List
+
 from loguru import logger
+
 from tools import (
     get_webpage_source,  # 获取网页源码工具
-    capture_webpage_screenshot, # 截图工具
-    extract_json_from_image, # 提取JSON Schema工具
-    refine_schema_from_image, # Schema迭代优化工具
-    generate_parser_code, # 生成解析代码工具
+    capture_webpage_screenshot,  # 截图工具
+    extract_json_from_image,  # 提取JSON Schema工具
+    refine_schema_from_image,  # Schema迭代优化工具
+    generate_parser_code,  # 生成解析代码工具
 )
-from config.settings import settings
 
 
 class AgentExecutor:
@@ -29,13 +30,13 @@ class AgentExecutor:
         self.screenshots_dir = self.output_dir / "screenshots"
         self.parsers_dir = self.output_dir / "parsers"
         self.html_dir = self.output_dir / "html"
-        self.json_dir = self.output_dir / "json"
+        self.result_dir = self.output_dir / "result"
         self.schemas_dir = self.output_dir / "schemas"
 
         self.screenshots_dir.mkdir(exist_ok=True)
         self.parsers_dir.mkdir(exist_ok=True)
         self.html_dir.mkdir(exist_ok=True)
-        self.json_dir.mkdir(exist_ok=True)
+        self.result_dir.mkdir(exist_ok=True)
         self.schemas_dir.mkdir(exist_ok=True)
     
     def execute_plan(self, plan: Dict) -> Dict:
@@ -86,15 +87,15 @@ class AgentExecutor:
         final_schema = schema_result['final_schema']
         logger.success(f"Schema迭代完成，最终Schema包含 {len(final_schema)} 个字段")
 
-        # 阶段2: 代码迭代（使用所有URL）
+        # 阶段2: 代码迭代（复用Schema阶段的HTML）
         logger.info(f"\n{'='*70}")
-        logger.info(f"阶段2: 代码迭代（{num_urls}个URL，{num_urls}轮迭代）")
+        logger.info(f"阶段2: 代码迭代（使用Schema阶段的{num_urls}个HTML，{num_urls}轮迭代）")
         logger.info(f"{'='*70}")
 
         code_result = self._execute_code_iteration_phase(
-            sample_urls,  # 使用所有URL
+            sample_urls,  # 仅用于日志，实际使用schema_result['rounds']中的数据
             final_schema,
-            schema_result['rounds']  # 传递schema阶段的数据用于后续验证
+            schema_result['rounds']  # 传递schema阶段的数据（包含HTML）
         )
         results['code_phase'] = code_result
 
@@ -106,8 +107,8 @@ class AgentExecutor:
             logger.info(f"\n{'='*70}")
             logger.info("使用最终解析器解析所有HTML")
             logger.info(f"{'='*70}")
-            all_rounds = schema_result['rounds'] + code_result['rounds']
-            self._parse_all_html_with_final_parser(results, all_rounds)
+            # 只使用Schema阶段的数据，因为代码阶段复用了Schema阶段的HTML
+            self._parse_all_html_with_final_parser(results, schema_result['rounds'])
         else:
             logger.error("代码迭代阶段失败")
 
@@ -235,13 +236,16 @@ class AgentExecutor:
         """
         执行代码迭代阶段
 
+        复用Schema阶段的HTML，不重复获取网页和截图
+        只进行代码生成和迭代优化
+
         第一轮：基于最终Schema生成初始解析代码
         后续轮：基于验证结果优化代码
 
         Args:
-            urls: URL列表
+            urls: URL列表（应与schema_phase_rounds对应）
             final_schema: 来自Schema迭代阶段的最终Schema
-            schema_phase_rounds: Schema阶段的轮次数据
+            schema_phase_rounds: Schema阶段的轮次数据（包含HTML）
 
         Returns:
             代码迭代结果
@@ -253,54 +257,39 @@ class AgentExecutor:
             'success': False,
         }
 
-        # 如果没有分配URL，使用Schema阶段的第一个HTML生成代码
-        if not urls:
-            logger.warning("代码迭代阶段没有分配URL，将使用Schema阶段的第一个HTML生成解析器")
-            if schema_phase_rounds and schema_phase_rounds[0].get('success'):
-                return self._generate_parser_from_schema_phase(final_schema, schema_phase_rounds[0])
-            else:
-                logger.error("Schema阶段没有可用的HTML数据")
-                return result
+        # 确保有可用的Schema阶段数据
+        if not schema_phase_rounds:
+            logger.error("Schema阶段没有可用的数据")
+            return result
 
         current_parser_code = None
         current_parser_path = None
 
-        for idx, url in enumerate(urls, 1):
+        # 使用Schema阶段的轮次数据
+        for idx, schema_round in enumerate(schema_phase_rounds, 1):
+            if not schema_round.get('success'):
+                logger.warning(f"Schema阶段第 {idx} 轮失败，跳过代码生成")
+                continue
+
             logger.info(f"\n{'─'*70}")
-            logger.info(f"代码迭代 - 第 {idx}/{len(urls)} 轮")
+            logger.info(f"代码迭代 - 第 {idx}/{len(schema_phase_rounds)} 轮")
             logger.info(f"{'─'*70}")
 
             try:
-                # 1. 获取HTML源码
-                logger.info(f"  [1/4] 获取HTML源码...")
-                html_content = get_webpage_source.invoke({"url": url})
-                logger.success(f"  ✓ HTML源码已获取")
+                # 复用Schema阶段的HTML
+                html_path = schema_round.get('html_path')
+                if not html_path:
+                    logger.error(f"  ✗ Schema阶段第 {idx} 轮缺少HTML路径")
+                    continue
 
-                # 保存HTML源码
-                html_path = self.html_dir / f"code_round_{idx}.html"
-                with open(html_path, 'w', encoding='utf-8') as f:
-                    f.write(html_content)
-                logger.success(f"  ✓ HTML已保存: {html_path}")
+                logger.info(f"  [1/2] 复用Schema阶段的HTML: {html_path}")
+                with open(html_path, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                logger.success(f"  ✓ HTML已加载")
 
-                # 2. 截图（用于groundtruth）
-                logger.info(f"  [2/4] 截图...")
-                screenshot_path = str(self.screenshots_dir / f"code_round_{idx}.png")
-                screenshot_result = capture_webpage_screenshot.invoke({
-                    "url": url,
-                    "save_path": screenshot_path
-                })
-                logger.success(f"  ✓ 截图已保存: {screenshot_path}")
-
-                # 3. 提取groundtruth（用于后续验证）
-                logger.info(f"  [3/4] 提取groundtruth...")
-                groundtruth_schema = extract_json_from_image.invoke({
-                    "image_path": screenshot_result
-                })
-                logger.success(f"  ✓ Groundtruth已提取")
-
-                # 4. 生成或优化解析代码
+                # 生成或优化解析代码
                 if idx == 1:
-                    logger.info(f"  [4/4] 生成初始解析代码...")
+                    logger.info(f"  [2/2] 生成初始解析代码...")
                     parser_result = generate_parser_code.invoke({
                         "html_content": html_content,
                         "target_json": final_schema,
@@ -308,7 +297,7 @@ class AgentExecutor:
                     })
                     logger.success(f"  ✓ 初始解析代码已生成")
                 else:
-                    logger.info(f"  [4/4] 优化解析代码（基于上一轮）...")
+                    logger.info(f"  [2/2] 优化解析代码（基于上一轮）...")
                     parser_result = generate_parser_code.invoke({
                         "html_content": html_content,
                         "target_json": final_schema,
@@ -319,7 +308,7 @@ class AgentExecutor:
                     })
                     logger.success(f"  ✓ 解析代码已优化")
 
-                # 5. 保存解析器代码
+                # 保存解析器代码
                 parser_filename = f"parser_round_{idx}.py"
                 code_parser_path = self.parsers_dir / parser_filename
                 with open(code_parser_path, 'w', encoding='utf-8') as f:
@@ -331,14 +320,13 @@ class AgentExecutor:
                 current_parser_path = str(code_parser_path)
                 parser_result['parser_path'] = current_parser_path
 
-                # 记录本轮结果
+                # 记录本轮结果（复用Schema阶段的数据）
                 round_result = {
                     'round': idx,
-                    'url': url,
-                    'html': html_content,
-                    'html_path': str(html_path),
-                    'screenshot': screenshot_result,
-                    'groundtruth_schema': groundtruth_schema,
+                    'url': schema_round['url'],
+                    'html_path': html_path,
+                    'screenshot': schema_round.get('screenshot'),  # 复用Schema阶段的截图
+                    'groundtruth_schema': schema_round.get('groundtruth_schema'),  # 复用Schema阶段的groundtruth
                     'parser_path': current_parser_path,
                     'parser_code': current_parser_code,
                     'parser_result': parser_result,
@@ -355,7 +343,7 @@ class AgentExecutor:
 
                 round_result = {
                     'round': idx,
-                    'url': url,
+                    'url': schema_round.get('url'),
                     'error': str(e),
                     'success': False,
                 }
@@ -444,150 +432,6 @@ class AgentExecutor:
             logger.debug(traceback.format_exc())
             return result
 
-    def _execute_round(
-        self,
-        url: str,
-        round_num: int,
-        merged_schema: Dict,
-        previous_parser_code: str = None,
-        parser_path: str = None
-    ) -> Dict:
-        """
-        执行单一轮次
-
-        Args:
-            url: 处理的URL
-            round_num: 轮次号
-            merged_schema: 之前合并的schema
-            previous_parser_code: 上一轮的解析代码
-            parser_path: 上一轮的解析器路径
-
-        Returns:
-            轮次结果
-        """
-        result = {
-            'round': round_num,
-            'url': url,
-            'html': None,
-            'screenshot': None,
-            'schema': None,
-            'merged_schema': merged_schema,
-            'parser_path': None,
-            'parser_code': None,
-            'parser_result': None,
-            'groundtruth_schema': None,
-            'success': False,
-        }
-        
-        try:
-            # 1. 获取HTML源码
-            logger.info(f"  [1/5] 获取HTML源码...")
-            result['html'] = get_webpage_source.invoke({"url": url})
-            logger.success(f"  ✓ HTML源码已获取")
-
-            # 保存HTML源码
-            html_path = self.html_dir / f"round_{round_num}.html"
-            with open(html_path, 'w', encoding='utf-8') as f:
-                f.write(result['html'])
-            result['html_path'] = str(html_path)
-            logger.success(f"  ✓ HTML已保存: {html_path}")
-
-            # 2. 截图
-            logger.info(f"  [2/5] 截图...")
-            screenshot_path = str(self.screenshots_dir / f"round_{round_num}.png")
-            result['screenshot'] = capture_webpage_screenshot.invoke({
-                "url": url,
-                "save_path": screenshot_path
-            })
-            logger.success(f"  ✓ 截图已保存: {screenshot_path}")
-
-            # 3. 提取JSON Schema（作为groundtruth）
-            logger.info(f"  [3/5] 提取JSON Schema...")
-            this_round_schema = extract_json_from_image.invoke({
-                "image_path": result['screenshot']
-            })
-            result['schema'] = this_round_schema
-            result['groundtruth_schema'] = this_round_schema
-            logger.success(f"  ✓ JSON Schema已提取，包含 {len(this_round_schema)} 个字段")
-
-            # 合并schema（第一轮直接使用，后续轮合并）
-            if round_num == 1:
-                result['merged_schema'] = this_round_schema
-                logger.info(f"  第一轮: 直接使用新schema")
-            else:
-                result['merged_schema'] = self._merge_schemas_incremental(
-                    merged_schema,
-                    this_round_schema
-                )
-                logger.info(f"  第 {round_num} 轮: 合并schema，现共 {len(result['merged_schema'])} 个字段")
-
-            # 4. 生成/优化解析代码
-            logger.info(f"  [4/5] 生成/优化解析代码...")
-            parser_result = self._generate_or_optimize_parser(
-                html_content=result['html'],
-                target_json=result['merged_schema'],
-                round_num=round_num,
-                previous_parser_code=previous_parser_code,
-                parser_path=parser_path
-            )
-            logger.success(f"  ✓ 解析代码已生成/优化")
-
-            # 5. 保存解析器代码
-            logger.info(f"  [5/5] 保存解析器...")
-            round_parser_path = self.parsers_dir / f"round_{round_num}.py"
-            with open(round_parser_path, 'w', encoding='utf-8') as f:
-                f.write(parser_result['code'])
-            logger.success(f"  ✓ 解析器已保存: {round_parser_path}")
-
-            result['parser_path'] = str(round_parser_path)
-            result['parser_code'] = parser_result['code']
-            result['parser_result'] = parser_result
-            result['parser_result']['parser_path'] = str(round_parser_path)  # 更新路径
-            result['success'] = True
-
-            logger.success(f"第 {round_num} 轮处理完成")
-
-        except Exception as e:
-            logger.error(f"第 {round_num} 轮处理失败: {str(e)}")
-            result['error'] = str(e)
-            import traceback
-            result['traceback'] = traceback.format_exc()
-
-        return result
-    
-    def _merge_schemas_incremental(self, old_schema: Dict, new_schema: Dict) -> Dict:
-        """
-        增量合并Schema
-
-        策略：
-        1. 保留所有旧schema中的字段
-        2. 添加新schema中的新字段
-        3. 对于重复的字段，合并字段信息
-        """
-        if not old_schema:
-            return new_schema.copy()
-
-        merged = old_schema.copy()
-
-        for field_name, field_data in new_schema.items():
-            if field_name not in merged:
-                # 新字段
-                merged[field_name] = field_data.copy()
-                msg = f"  + 新增字段: {field_name}"
-                logger.debug(msg)
-                print(msg)  # 同时打印到控制台
-            else:
-                # 现有字段，更新信息
-                existing = merged[field_name]
-                # 保留现有的类型、描述等，但可以根据需要更新
-                if 'description' in field_data and 'description' not in existing:
-                    existing['description'] = field_data['description']
-                msg = f"  ~ 更新字段: {field_name}"
-                logger.debug(msg)
-                print(msg)  # 同时打印到控制台
-
-        return merged
-
     def _generate_or_optimize_parser(
         self,
         html_content: str,
@@ -634,57 +478,9 @@ class AgentExecutor:
 
         return parser_result
 
-    def _merge_schemas(self, samples: List[Dict]) -> Dict:
-        """
-        合并多个样本的Schema，提取公共字段
-
-        策略：
-        1. 统计每个字段在所有样本中出现的次数
-        2. 出现在50%以上样本中的字段被认为是必需字段
-        3. 其他字段标记为可选字段
-        """
-        if len(samples) == 1:
-            return samples[0]['schema']
-
-        logger.info(f"合并 {len(samples)} 个样本的Schema...")
-
-        # 统计字段出现次数
-        field_counts = {}
-        field_info = {}
-
-        for sample in samples:
-            schema = sample.get('schema', {})
-            for field_name, field_data in schema.items():
-                if field_name not in field_counts:
-                    field_counts[field_name] = 0
-                    field_info[field_name] = field_data
-                field_counts[field_name] += 1
-
-        # 计算阈值（50%）
-        threshold = len(samples) * 0.5
-
-        # 构建合并后的Schema
-        merged_schema = {}
-        for field_name, count in field_counts.items():
-            field_data = field_info[field_name].copy()
-
-            # 标记字段是否为必需
-            if count >= threshold:
-                field_data['required'] = True
-                field_data['frequency'] = f"{count}/{len(samples)}"
-                merged_schema[field_name] = field_data
-                logger.debug(f"  必需字段: {field_name} (出现 {count}/{len(samples)} 次)")
-            else:
-                field_data['required'] = False
-                field_data['frequency'] = f"{count}/{len(samples)}"
-                merged_schema[field_name] = field_data
-                logger.debug(f"  可选字段: {field_name} (出现 {count}/{len(samples)} 次)")
-
-        return merged_schema
-
     def _parse_all_html_with_final_parser(self, results: Dict, all_rounds: List[Dict]) -> None:
         """
-        使用最终解析器解析所有HTML文件并生成JSON
+        使用最终解析器解析所有HTML文件并生成JSON，保存到result目录
 
         Args:
             results: 执行结果
@@ -697,35 +493,30 @@ class AgentExecutor:
             logger.info(f"  加载最终解析器: {final_parser_path}")
             parser = self._load_parser(final_parser_path)
 
-            # 遍历所有轮次的HTML
-            for round_result in all_rounds:
-                if not round_result.get('success'):
-                    continue
+            # 直接扫描html目录下的所有HTML文件
+            html_files = sorted(self.html_dir.glob("*.html"))
 
-                round_num = round_result['round']
-                html_path = round_result.get('html_path')
+            if not html_files:
+                logger.warning("  html目录下没有找到HTML文件")
+                return
 
-                if not html_path:
-                    logger.warning(f"  轮次 {round_num} 没有HTML路径，跳过")
-                    continue
+            logger.info(f"  找到 {len(html_files)} 个HTML文件")
 
-                # 读取HTML内容
+            # 遍历所有HTML文件
+            for html_path in html_files:
+                logger.info(f"  解析 {html_path.name}...")
+
                 try:
+                    # 读取HTML内容
                     with open(html_path, 'r', encoding='utf-8') as f:
                         html_content = f.read()
-                except Exception as e:
-                    logger.warning(f"  读取 {html_path} 失败: {e}")
-                    continue
 
-                logger.info(f"  解析轮次 {round_num} 的HTML...")
-
-                try:
                     # 使用解析器解析HTML
                     parsed_data = parser.parse(html_content)
 
-                    # 确定保存路径（基于原文件名）
-                    json_filename = Path(html_path).stem + '.json'
-                    json_path = self.json_dir / json_filename
+                    # 确定保存路径（基于原文件名），保存到result目录
+                    json_filename = html_path.stem + '.json'
+                    json_path = self.result_dir / json_filename
 
                     # 保存JSON
                     with open(json_path, 'w', encoding='utf-8') as f:
@@ -734,16 +525,12 @@ class AgentExecutor:
                     logger.success(f"  ✓ JSON已保存: {json_path}")
                     logger.info(f"     提取了 {len(parsed_data)} 个字段")
 
-                    # 将JSON路径添加到结果中
-                    round_result['json_path'] = str(json_path)
-                    round_result['parsed_data'] = parsed_data
-
                 except Exception as e:
-                    logger.error(f"  ✗ 轮次 {round_num} 解析失败: {str(e)}")
+                    logger.error(f"  ✗ 解析 {html_path.name} 失败: {str(e)}")
                     import traceback
                     logger.debug(traceback.format_exc())
 
-            logger.success("所有HTML解析完成")
+            logger.success(f"所有HTML解析完成，结果已保存到: {self.result_dir}")
 
         except Exception as e:
             logger.error(f"加载最终解析器失败: {str(e)}")

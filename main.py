@@ -144,8 +144,7 @@ def main():
     result = agent.generate_parser(
         urls=urls,
         domain=args.domain,
-        layout_type=args.layout_type,
-        validate=not args.no_validate
+        layout_type=args.layout_type
     )
 
     # 输出结果

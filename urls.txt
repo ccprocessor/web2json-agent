@@ -4,6 +4,3 @@
 # StackOverflow Blog 示例
 https://stackoverflow.blog/2025/10/15/secure-coding-in-javascript/
 https://stackoverflow.blog/2025/09/12/planning-to-arm-mobile-devices-with-chips-that-handle-ai/
-https://stackoverflow.blog/2024/11/13/your-docs-are-your-infrastructure/
-https://stackoverflow.blog/2025/10/28/craft-and-quality-beat-speed-and-scale-with-or-without-agents/
-https://stackoverflow.blog/2025/10/02/building-ai-ready-teams-why-documentation-and-culture-matter-more-than-tools/
