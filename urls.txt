@@ -2,8 +2,8 @@
 # 每行一个URL，以 # 开头的行为注释
 
 # StackOverflow Blog 示例
-https://stackoverflow.com/questions/79835447/how-to-reliably-calculate-rolling-metrics-when-the-dataset-contains-missing-valu
-https://stackoverflow.com/questions/79835446/why-big-data-log-cause-the-java-progress-memory-high
-https://stackoverflow.com/questions/79835445/data-ownership-and-transaction-managment-in-soa
-https://stackoverflow.com/questions/79835440/trigger-function-to-check-record-uniqueness
-https://stackoverflow.com/questions/79835439/troubleshooting-memory-leak-retain-cycle-in-apples-camera-app-tutorial
+https://stackoverflow.blog/2025/10/15/secure-coding-in-javascript/
+https://stackoverflow.blog/2025/09/12/planning-to-arm-mobile-devices-with-chips-that-handle-ai/
+https://stackoverflow.blog/2024/11/13/your-docs-are-your-infrastructure/
+https://stackoverflow.blog/2025/10/28/craft-and-quality-beat-speed-and-scale-with-or-without-agents/
+https://stackoverflow.blog/2025/10/02/building-ai-ready-teams-why-documentation-and-culture-matter-more-than-tools/
