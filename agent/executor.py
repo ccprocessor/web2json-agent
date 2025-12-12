@@ -329,8 +329,7 @@ class AgentExecutor:
                     parser_result = generate_parser_code.invoke({
                         "html_content": html_content,
                         "target_json": final_schema,
-                        "output_dir": str(self.parsers_dir),
-                        "importance_threshold": self.importance_threshold
+                        "output_dir": str(self.parsers_dir)
                     })
                     logger.success(f"  ✓ 初始解析代码已生成")
                 else:
@@ -341,8 +340,7 @@ class AgentExecutor:
                         "output_dir": str(self.parsers_dir),
                         "previous_parser_code": current_parser_code,
                         "previous_parser_path": current_parser_path,
-                        "round_num": idx,
-                        "importance_threshold": self.importance_threshold
+                        "round_num": idx
                     })
                     logger.success(f"  ✓ 解析代码已优化")
 

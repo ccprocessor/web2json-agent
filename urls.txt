@@ -2,8 +2,6 @@
 # 每行一个URL，以 # 开头的行为注释
 
 # StackOverflow Blog 示例
-https://blog.csdn.net/qq_42055933/article/details/151153581?ops_request_misc=%257B%2522request%255Fid%2522%253A%25220e7cc40784f238ffedeea1fdfc13d31a%2522%252C%2522scm%2522%253A%252220140713.130102334..%2522%257D&request_id=0e7cc40784f238ffedeea1fdfc13d31a&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~top_positive~default-1-151153581-null-null.nonlogin&utm_term=agent&spm=1018.2226.3001.4187
-https://blog.csdn.net/m0_48891301/article/details/148189205?ops_request_misc=&request_id=&biz_id=102&utm_term=agent&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduweb~default-0-148189205.nonlogin&spm=1018.2226.3001.4187
 https://stackoverflow.blog/2024/11/13/your-docs-are-your-infrastructure/
 https://stackoverflow.blog/2025/10/28/craft-and-quality-beat-speed-and-scale-with-or-without-agents/
 https://stackoverflow.blog/2025/10/02/building-ai-ready-teams-why-documentation-and-culture-matter-more-than-tools/
