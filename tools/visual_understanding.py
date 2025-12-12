@@ -49,9 +49,7 @@ def extract_json_from_image(image_path: str) -> Dict:
         image_data = _image_to_base64(image_path)
 
         # 2. 使用 Prompt 模块构建提示词
-        prompt = VisualUnderstandingPrompts.get_extraction_prompt(
-            version=settings.vision_prompt_version
-        )
+        prompt = VisualUnderstandingPrompts.get_extraction_prompt()
 
         # 3. 使用 LangChain 1.0 的 ChatOpenAI
         from langchain_openai import ChatOpenAI
@@ -121,10 +119,7 @@ def refine_schema_from_image(image_path: str, previous_schema: Dict) -> Dict:
         image_data = _image_to_base64(image_path)
 
         # 2. 使用Schema迭代Prompt
-        prompt = VisualUnderstandingPrompts.get_schema_refinement_prompt(
-            previous_schema,
-            version=settings.vision_prompt_version
-        )
+        prompt = VisualUnderstandingPrompts.get_schema_refinement_prompt(previous_schema)
 
         # 3. 使用 LangChain 1.0 的 ChatOpenAI
         from langchain_openai import ChatOpenAI

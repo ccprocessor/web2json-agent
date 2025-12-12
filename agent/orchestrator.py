@@ -16,22 +16,18 @@ class ParserAgent:
     通过给定一组URL，自动生成能够解析这些页面的Python代码
     """
     
-    def __init__(self, output_dir: str = "output", importance_threshold: float = 0.7):
+    def __init__(self, output_dir: str = "output"):
         """
         初始化Agent
 
         Args:
             output_dir: 输出目录
-            importance_threshold: 重要性评分阈值（0.0-1.0），只生成评分高于此值的字段
         """
         self.planner = AgentPlanner()
-        self.executor = AgentExecutor(output_dir, importance_threshold)
+        self.executor = AgentExecutor(output_dir)
         self.output_dir = Path(output_dir)
-        self.importance_threshold = importance_threshold
 
         logger.info("ParserAgent 初始化完成")
-        logger.info(f"  - 输出目录: {output_dir}")
-        logger.info(f"  - 重要性阈值: {importance_threshold}")
     
     def generate_parser(
         self,

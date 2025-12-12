@@ -23,10 +23,9 @@ from tools.html_simplifier import simplify_html  # HTML精简工具
 class AgentExecutor:
     """Agent执行器，负责执行具体任务"""
     
-    def __init__(self, output_dir: str = "output", importance_threshold: float = 0.7):
+    def __init__(self, output_dir: str = "output"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.importance_threshold = importance_threshold
 
         # 创建子目录
         self.screenshots_dir = self.output_dir / "screenshots"
