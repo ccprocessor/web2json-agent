@@ -37,9 +37,6 @@ class Settings(BaseModel):
     vision_model: str = Field(default_factory=lambda: os.getenv("VISION_MODEL", "qwen-vl-max"))
     vision_temperature: float = Field(default_factory=lambda: float(os.getenv("VISION_TEMPERATURE", "0")))
     vision_max_tokens: int = Field(default_factory=lambda: int(os.getenv("VISION_MAX_TOKENS", "4096")))
-    # v1: 灵活抽取字段
-    # v2: 抽取预定义字段
-    vision_prompt_version: str = Field(default_factory=lambda: os.getenv("VISION_PROMPT_VERSION", "v2"))
 
     # 默认模型配置（用于向后兼容和通用场景）
     default_model: str = Field(default_factory=lambda: os.getenv("DEFAULT_MODEL", "claude-sonnet-4-5-20250929"))

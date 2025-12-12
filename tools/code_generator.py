@@ -19,8 +19,7 @@ def generate_parser_code(
     output_dir: str = "generated_parsers",
     previous_parser_code: str = None,
     previous_parser_path: str = None,
-    round_num: int = 1,
-    importance_threshold: float = 0.7
+    round_num: int = 1
 ) -> Dict:
     """
     从HTML和目标JSON生成或优化BeautifulSoup解析代码
@@ -32,7 +31,6 @@ def generate_parser_code(
         previous_parser_code: 前一轮的解析代码（用于优化）
         previous_parser_path: 前一轮的解析器路径（用于更新）
         round_num: 当前轮次号
-        importance_threshold: 重要性评分阈值（0.0-1.0），只生成评分高于此值的字段的解析代码
 
     Returns:
         生成/优化结果，包括代码路径和配置路径
@@ -42,23 +40,6 @@ def generate_parser_code(
             logger.info("正在从0生成解析代码...")
         else:
             logger.info(f"正在基于前一轮代码优化（第 {round_num} 轮）...")
-
-        # 根据重要性阈值过滤字段
-        filtered_json = {}
-        excluded_fields = []
-        for key, value in target_json.items():
-            importance = value.get('importance_score', 1.0)  # 默认为1.0（兼容旧数据）
-            if importance >= importance_threshold:
-                filtered_json[key] = value
-            else:
-                excluded_fields.append((key, importance))
-
-        if excluded_fields:
-            logger.info(f"  根据阈值 {importance_threshold} 过滤了 {len(excluded_fields)} 个字段:")
-            for field, score in excluded_fields:
-                logger.info(f"    - {field} (score: {score})")
-
-        logger.info(f"  将生成 {len(filtered_json)} 个字段的解析代码")
 
         # 使用封装的 LLMClient 以支持 token 追踪
         from utils.llm_client import LLMClient
@@ -70,16 +51,16 @@ def generate_parser_code(
             temperature=settings.code_gen_temperature
         )
 
-        # 使用 Prompt 模块构建提示词（使用过滤后的JSON）
+        # 使用 Prompt 模块构建提示词
         if round_num == 1:
             prompt = CodeGeneratorPrompts.get_initial_generation_prompt(
                 html_content,
-                filtered_json
+                target_json
             )
         else:
             prompt = CodeGeneratorPrompts.get_optimization_prompt(
                 html_content,
-                filtered_json,
+                target_json,
                 previous_parser_code,
                 round_num
             )
@@ -111,22 +92,17 @@ def generate_parser_code(
         parser_path = output_path / "generated_parser.py"
         parser_path.write_text(generated_code, encoding='utf-8')
 
-        # 生成配置文件（使用过滤后的JSON）
+        # 生成配置文件
         config = {
             'version': '1.0',
             'round': round_num,
-            'importance_threshold': importance_threshold,
-            'total_fields': len(target_json),
-            'included_fields': len(filtered_json),
-            'excluded_fields': len(excluded_fields),
             'fields': {
                 key: {
                     'type': value.get('type', 'string'),
                     'description': value.get('description', ''),
-                    'importance_score': value.get('importance_score', 1.0),
                     'required': True
                 }
-                for key, value in filtered_json.items()
+                for key, value in target_json.items()
             },
             'options': {
                 'encoding': 'utf-8',
