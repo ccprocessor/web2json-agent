@@ -240,7 +240,8 @@ def simplify_html_minimal(
 def simplify_html(
     html_str: str,
     keep_attrs: List[str] = None,
-    aggressive: bool = True
+    aggressive: bool = True,
+    mode: str = 'default'
 ) -> str:
     """
     精简 HTML，删除无用标签和属性，使其更易于处理和分析
@@ -249,6 +250,9 @@ def simplify_html(
         html_str: 原始 HTML 字符串
         keep_attrs: 要保留的属性列表，例如 ['class', 'id', 'href']。None 表示删除所有属性
         aggressive: 是否使用激进模式（删除更多标签和清理所有属性）
+        mode: 精简模式
+            - 'default': 根据aggressive参数决定
+            - 'xpath': 为xpath提取优化，保留结构属性和内容标签
 
     Returns:
         精简后的 HTML 字符串
@@ -260,12 +264,41 @@ def simplify_html(
 
         >>> # 保留特定属性
         >>> simplified = simplify_html(html, keep_attrs=['class', 'id'])
+
+        >>> # 为xpath提取优化
+        >>> simplified = simplify_html(html, mode='xpath')
     """
     try:
         logger.info(f"开始精简 HTML，长度: {len(html_str)} 字符")
 
-        # 根据模式选择参数
-        if aggressive:
+        # xpath模式：为xpath提取优化
+        if mode == 'xpath':
+            # 删除明确无用的标签，但保留可能有内容的标签
+            remove_tags_list = [
+                # 头部和元数据
+                'base', 'head', 'link', 'meta', 'style', 'title',
+                # 脚本和嵌入
+                'script', 'noscript', 'iframe', 'embed', 'object',
+                # 表单元素（通常不需要）
+                'button', 'datalist', 'fieldset', 'input', 'label',
+                'legend', 'meter', 'optgroup', 'option', 'output',
+                'progress', 'select', 'textarea', 'form',
+                # 其他
+                'canvas', 'dialog', 'source', 'track',
+            ]
+            # 保留class, id等定位属性
+            keep_attrs_list = keep_attrs if keep_attrs is not None else ['class', 'id', 'href', 'src', 'data-id']
+
+            result = simplify_html_minimal(
+                html_str=html_str,
+                remove_tags=remove_tags_list,
+                remove_invisible=True,
+                remove_empty=True,
+                clean_attrs=True,
+                keep_attrs=keep_attrs_list
+            )
+        # 根据aggressive参数选择模式
+        elif aggressive:
             # 激进模式：删除所有无用内容
             result = simplify_html_minimal(
                 html_str=html_str,
@@ -306,7 +339,8 @@ def simplify_html(
 def simplify_html_tool(
     html_str: str,
     keep_attrs: List[str] = None,
-    aggressive: bool = True
+    aggressive: bool = True,
+    mode: str = 'default'
 ) -> str:
     """
     精简 HTML，删除无用标签和属性，使其更易于处理和分析
@@ -317,11 +351,12 @@ def simplify_html_tool(
         html_str: 原始 HTML 字符串
         keep_attrs: 要保留的属性列表，例如 ['class', 'id', 'href']。None 表示删除所有属性
         aggressive: 是否使用激进模式（删除更多标签和清理所有属性）
+        mode: 精简模式 ('default', 'xpath')
 
     Returns:
         精简后的 HTML 字符串
     """
-    return simplify_html(html_str, keep_attrs, aggressive)
+    return simplify_html(html_str, keep_attrs, aggressive, mode)
 
 
 # ============================================

@@ -10,6 +10,7 @@ from typing import Dict, List
 
 from loguru import logger
 
+from config.settings import settings
 from tools import (
     get_webpage_source,  # 获取网页源码工具
     capture_webpage_screenshot,  # 截图工具
@@ -172,10 +173,14 @@ class AgentExecutor:
                 # 2. 精简HTML
                 logger.info(f"  [2/6] 精简HTML...")
                 try:
+                    # 根据配置选择精简模式
+                    mode = settings.html_simplify_mode
+                    keep_attrs = settings.html_keep_attrs if mode != 'conservative' else None
+
                     simplified_html = simplify_html(
                         html_content,
-                        aggressive=True,  # 使用激进模式
-                        keep_attrs=[]  # 不保留属性，最大化精简
+                        mode=mode,
+                        keep_attrs=keep_attrs
                     )
                     # 保存精简后的HTML
                     html_simplified_path = self.html_simplified_dir / f"schema_round_{idx}.html"

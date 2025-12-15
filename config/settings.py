@@ -54,6 +54,14 @@ class Settings(BaseModel):
     timeout: int = Field(default_factory=lambda: int(os.getenv("TIMEOUT", "30000")))
     screenshot_full_page: bool = Field(default_factory=lambda: os.getenv("SCREENSHOT_FULL_PAGE", "true").lower() == "true")
 
+    # ============================================
+    # HTML精简配置
+    # ============================================
+    html_simplify_mode: str = Field(default_factory=lambda: os.getenv("HTML_SIMPLIFY_MODE", "xpath"))
+    html_keep_attrs: list = Field(default_factory=lambda: [
+        attr.strip() for attr in os.getenv("HTML_KEEP_ATTRS", "class,id,href,src,data-id").split(",")
+    ])
+
     class Config:
         """Pydantic配置"""
         env_file = ".env"

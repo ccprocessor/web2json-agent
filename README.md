@@ -96,11 +96,15 @@ AGENT_MODEL=claude-sonnet-4-5-20250929
 CODE_GEN_MODEL=claude-sonnet-4-5-20250929
 VISION_MODEL=qwen-vl-max
 
-# Agent 配置
-MAX_ITERATIONS=5          # 最大迭代次数
-SUCCESS_THRESHOLD=0.8     # 成功率阈值（80%）
-MIN_SAMPLE_SIZE=2         # 最小样本数量
+# HTML精简配置
+HTML_SIMPLIFY_MODE=xpath                    # 精简模式: xpath/aggressive/conservative
+HTML_KEEP_ATTRS=class,id,href,src,data-id  # 保留的属性（逗号分隔）
 ```
+
+**HTML精简模式说明**：
+- `xpath` (推荐): 为Schema提取优化，保留定位属性和内容标签，压缩率~30-40%
+- `aggressive`: 激进模式，最大化压缩，压缩率~60-80%，可能影响xpath准确性
+- `conservative`: 保守模式，保留更多原始结构，压缩率~20-30%
 
 ---
 
