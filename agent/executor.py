@@ -12,8 +12,8 @@ from loguru import logger
 
 from config.settings import settings
 from tools import (
-    get_webpage_source,  # 获取网页源码工具
-    capture_webpage_screenshot,  # 截图工具
+    get_html_from_file,  # 从本地文件读取HTML工具
+    capture_html_file_screenshot,  # 渲染本地HTML并截图工具
     extract_json_from_image,  # 提取JSON Schema工具（旧版）
     refine_schema_from_image,  # Schema迭代优化工具（旧版）
     generate_parser_code,  # 生成解析代码工具
@@ -126,21 +126,22 @@ class AgentExecutor:
 
         return results
 
-    def _execute_schema_iteration_phase(self, urls: List[str]) -> Dict:
+    def _execute_schema_iteration_phase(self, html_files: List[str]) -> Dict:
         """
         执行Schema迭代阶段（新版）
 
-        对每个HTML：
-        1. 获取HTML和截图
-        2. 从HTML提取Schema（包含xpath）
-        3. 从视觉提取Schema（包含visual_features）
-        4. 合并两个Schema
+        对每个HTML文件：
+        1. 读取HTML文件内容
+        2. 渲染HTML并截图
+        3. 从HTML提取Schema（包含xpath）
+        4. 从视觉提取Schema（包含visual_features）
+        5. 合并两个Schema
 
         所有HTML处理完后：
-        5. 合并多个Schema，输出最终Schema
+        6. 合并多个Schema，输出最终Schema
 
         Args:
-            urls: URL列表
+            html_files: HTML文件路径列表
 
         Returns:
             Schema迭代结果
@@ -153,18 +154,18 @@ class AgentExecutor:
 
         all_merged_schemas = []  # 存储每个HTML的合并Schema
 
-        for idx, url in enumerate(urls, 1):
+        for idx, html_file_path in enumerate(html_files, 1):
             logger.info(f"\n{'─'*70}")
-            logger.info(f"Schema迭代 - 第 {idx}/{len(urls)} 轮")
+            logger.info(f"Schema迭代 - 第 {idx}/{len(html_files)} 轮")
             logger.info(f"{'─'*70}")
 
             try:
-                # 1. 获取HTML源码
-                logger.info(f"  [1/6] 获取HTML源码...")
-                html_content = get_webpage_source.invoke({"url": url})
-                logger.success(f"  ✓ HTML源码已获取（长度: {len(html_content)} 字符）")
+                # 1. 读取HTML文件内容
+                logger.info(f"  [1/6] 读取本地HTML文件...")
+                html_content = get_html_from_file.invoke({"file_path": html_file_path})
+                logger.success(f"  ✓ HTML文件已读取（长度: {len(html_content)} 字符）")
 
-                # 保存原始HTML
+                # 保存原始HTML（复制到输出目录）
                 html_original_path = self.html_original_dir / f"schema_round_{idx}.html"
                 with open(html_original_path, 'w', encoding='utf-8') as f:
                     f.write(html_content)
@@ -199,11 +200,11 @@ class AgentExecutor:
                     html_path = html_original_path
                     html_for_processing = html_content
 
-                # 3. 截图
-                logger.info(f"  [3/6] 截图...")
+                # 3. 渲染并截图
+                logger.info(f"  [3/6] 渲染并截图本地HTML...")
                 screenshot_path = str(self.screenshots_dir / f"schema_round_{idx}.png")
-                screenshot_result = capture_webpage_screenshot.invoke({
-                    "url": url,
+                screenshot_result = capture_html_file_screenshot.invoke({
+                    "html_file_path": html_file_path,
                     "save_path": screenshot_path
                 })
                 logger.success(f"  ✓ 截图已保存: {screenshot_path}")
@@ -254,7 +255,8 @@ class AgentExecutor:
                 # 记录本轮结果
                 round_result = {
                     'round': idx,
-                    'url': url,
+                    'html_file': html_file_path,
+                    'url': html_file_path,  # 为了兼容性保留
                     'html_original_path': str(html_original_path),
                     'html_path': str(html_path),
                     'screenshot': screenshot_result,
@@ -279,7 +281,8 @@ class AgentExecutor:
 
                 round_result = {
                     'round': idx,
-                    'url': url,
+                    'html_file': html_file_path,
+                    'url': html_file_path,  # 为了兼容性保留
                     'error': str(e),
                     'success': False,
                 }
