@@ -12,10 +12,10 @@ from .executor import AgentExecutor
 class ParserAgent:
     """
     HTML解析器生成Agent
-    
-    通过给定一组URL，自动生成能够解析这些页面的Python代码
+
+    通过给定一组HTML文件，自动生成能够解析这些页面的Python代码
     """
-    
+
     def __init__(self, output_dir: str = "output"):
         """
         初始化Agent
@@ -28,10 +28,10 @@ class ParserAgent:
         self.output_dir = Path(output_dir)
 
         logger.info("ParserAgent 初始化完成")
-    
+
     def generate_parser(
         self,
-        urls: List[str],
+        html_files: List[str],
         domain: str = None,
         layout_type: str = None
     ) -> Dict:
@@ -39,14 +39,14 @@ class ParserAgent:
         生成解析器
 
         流程：
-        1. 规划：分析URL并制定执行计划
+        1. 规划：分析HTML文件并制定执行计划
         2. 执行：
            - 阶段1: Schema迭代 - 提取并优化Schema
            - 阶段2: 代码迭代 - 生成并优化解析代码
         3. 总结：生成执行总结
 
         Args:
-            urls: URL列表
+            html_files: HTML文件路径列表
             domain: 域名（可选）
             layout_type: 布局类型（可选）
 
@@ -59,7 +59,7 @@ class ParserAgent:
 
         # 第一步：规划
         logger.info("\n[步骤 1/3] 任务规划")
-        plan = self.planner.create_plan(urls, domain, layout_type)
+        plan = self.planner.create_plan(html_files, domain, layout_type)
 
         # 第二步：执行（两阶段迭代）
         logger.info("\n[步骤 2/3] 执行计划 - 两阶段迭代")

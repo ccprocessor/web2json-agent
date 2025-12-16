@@ -1,10 +1,11 @@
 """
 HtmlParserAgent 主程序
-通过给定URL列表，自动生成网页解析代码
+通过给定HTML文件目录，自动生成网页解析代码
 """
 import sys
 import argparse
 import warnings
+from pathlib import Path
 from loguru import logger
 from agent import ParserAgent
 
@@ -29,29 +30,40 @@ def setup_logger():
     )
 
 
-def read_urls_from_file(file_path: str) -> list:
-    """从文件读取URL列表
+def read_html_files_from_directory(directory_path: str) -> list:
+    """从目录读取HTML文件列表
 
     Args:
-        file_path: URL文件路径，每行一个URL
+        directory_path: HTML文件目录路径
 
     Returns:
-        URL列表
+        HTML文件路径列表（绝对路径）
     """
-    urls = []
+    html_files = []
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                # 跳过空行和注释行
-                if line and not line.startswith('#'):
-                    urls.append(line)
-        return urls
-    except FileNotFoundError:
-        logger.error(f"文件不存在: {file_path}")
-        sys.exit(1)
+        dir_path = Path(directory_path)
+        if not dir_path.exists():
+            logger.error(f"目录不存在: {directory_path}")
+            sys.exit(1)
+
+        if not dir_path.is_dir():
+            logger.error(f"路径不是一个目录: {directory_path}")
+            sys.exit(1)
+
+        # 查找所有HTML文件
+        for ext in ['*.html', '*.htm']:
+            html_files.extend(dir_path.glob(ext))
+
+        # 转换为绝对路径字符串并排序
+        html_files = sorted([str(f.absolute()) for f in html_files])
+
+        if not html_files:
+            logger.error(f"目录中没有找到HTML文件: {directory_path}")
+            sys.exit(1)
+
+        return html_files
     except Exception as e:
-        logger.error(f"读取文件失败: {e}")
+        logger.error(f"读取目录失败: {e}")
         sys.exit(1)
 
 
@@ -65,31 +77,21 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 从文件读取URL列表（推荐）
-  python main.py -f urls.txt -o output/blog
-
-  # 单个URL（测试用）
-  python main.py https://example.com/article
-
-  # 多个URL
-  python main.py https://example.com/article1 https://example.com/article2
+  # 从目录读取HTML文件（推荐）
+  python main.py -d input_html/ -o output/blog
 
   # 指定输出目录和页面类型
-  python main.py -f urls.txt -o output/blog -t blog_article
+  python main.py -d input_html/ -o output/blog -t blog_article
 
   # 不验证，快速生成
-  python main.py -f urls.txt --no-validate
+  python main.py -d input_html/ --no-validate
         """
     )
 
     parser.add_argument(
-        'urls',
-        nargs='*',
-        help='URL列表（直接在命令行指定）'
-    )
-    parser.add_argument(
-        '-f', '--file',
-        help='URL文件路径（每行一个URL，推荐用于多URL场景）'
+        '-d', '--directory',
+        required=True,
+        help='HTML文件目录路径（包含多个HTML源码文件）'
     )
     parser.add_argument(
         '-o', '--output',
@@ -102,8 +104,8 @@ def main():
         help='页面类型（如: blog_article, product_page, news_list）'
     )
     parser.add_argument(
-        '-d', '--domain',
-        help='域名（可选，自动从URL提取）'
+        '--domain',
+        help='域名（可选）'
     )
     parser.add_argument(
         '--no-validate',
@@ -113,25 +115,10 @@ def main():
 
     args = parser.parse_args()
 
-    # 获取URL列表
-    urls = []
-    if args.file:
-        # 从文件读取
-        logger.info(f"从文件读取URL: {args.file}")
-        urls = read_urls_from_file(args.file)
-        logger.info(f"读取到 {len(urls)} 个URL")
-    elif args.urls:
-        # 从命令行读取
-        urls = args.urls
-        logger.info(f"从命令行读取 {len(urls)} 个URL")
-    else:
-        # 没有提供URL，显示帮助
-        parser.print_help()
-        sys.exit(0)
-
-    if not urls:
-        logger.error("没有找到任何URL")
-        sys.exit(1)
+    # 获取HTML文件列表
+    logger.info(f"从目录读取HTML文件: {args.directory}")
+    html_files = read_html_files_from_directory(args.directory)
+    logger.info(f"读取到 {len(html_files)} 个HTML文件")
 
     logger.info("="*70)
     logger.info("HtmlParserAgent - 智能网页解析代码生成器")
@@ -142,7 +129,7 @@ def main():
 
     # 生成解析器
     result = agent.generate_parser(
-        urls=urls,
+        html_files=html_files,
         domain=args.domain,
         layout_type=args.layout_type
     )
