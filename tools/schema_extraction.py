@@ -12,6 +12,7 @@ import os
 
 from config.settings import settings
 from prompts.schema_extraction import SchemaExtractionPrompts
+from prompts.schema_merge import SchemaMergePrompts
 
 
 def _parse_llm_response(response: str) -> Dict:
@@ -172,7 +173,7 @@ def merge_html_and_visual_schema(html_schema: Dict, visual_schema: Dict) -> Dict
         logger.info("正在合并HTML和视觉Schema...")
 
         # 1. 获取Prompt
-        prompt = SchemaExtractionPrompts.get_merge_single_schema_prompt(
+        prompt = SchemaMergePrompts.get_merge_single_schema_prompt(
             html_schema, visual_schema
         )
 
@@ -227,7 +228,7 @@ def merge_multiple_schemas(schemas: List[Dict]) -> Dict:
         logger.info(f"正在合并 {len(schemas)} 个Schema...")
 
         # 1. 获取Prompt
-        prompt = SchemaExtractionPrompts.get_merge_multiple_schemas_prompt(schemas)
+        prompt = SchemaMergePrompts.get_merge_multiple_schemas_prompt(schemas)
 
         # 2. 调用LLM
         model = ChatOpenAI(

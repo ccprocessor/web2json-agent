@@ -14,13 +14,11 @@ from config.settings import settings
 from tools import (
     get_html_from_file,  # 从本地文件读取HTML工具
     capture_html_file_screenshot,  # 渲染本地HTML并截图工具
-    extract_json_from_image,  # 提取JSON Schema工具（旧版）
-    refine_schema_from_image,  # Schema迭代优化工具（旧版）
     generate_parser_code,  # 生成解析代码工具
-    extract_schema_from_html,  # 从HTML提取Schema（新版）
-    extract_schema_from_image,  # 从截图提取Schema（新版）
-    merge_html_and_visual_schema,  # 合并单个HTML的两种Schema（新版）
-    merge_multiple_schemas,  # 合并多个HTML的Schema（新版）
+    extract_schema_from_html,  # 从HTML提取Schema
+    extract_schema_from_image,  # 从截图提取Schema
+    merge_html_and_visual_schema,  # 合并单个HTML的两种Schema
+    merge_multiple_schemas,  # 合并多个HTML的Schema
 )
 from tools.html_simplifier import simplify_html  # HTML精简工具
 
@@ -467,113 +465,6 @@ class AgentExecutor:
             result['success'] = True
 
         return result
-
-    def _generate_parser_from_schema_phase(
-        self,
-        final_schema: Dict,
-        first_schema_round: Dict
-    ) -> Dict:
-        """
-        当代码迭代阶段没有URL时，使用Schema阶段的HTML生成解析器
-
-        Args:
-            final_schema: 最终Schema
-            first_schema_round: Schema阶段的第一轮数据
-
-        Returns:
-            代码迭代结果
-        """
-        result = {
-            'rounds': [],
-            'parsers': [],
-            'final_parser': None,
-            'success': False,
-        }
-
-        try:
-            logger.info("使用Schema阶段的第一个HTML生成解析器...")
-
-            # 读取HTML内容
-            html_path = first_schema_round.get('html_path')
-            with open(html_path, 'r', encoding='utf-8') as f:
-                html_content = f.read()
-
-            # 生成解析器
-            parser_result = generate_parser_code.invoke({
-                "html_content": html_content,
-                "target_json": final_schema,
-                "output_dir": str(self.parsers_dir)
-            })
-
-            # 保存最终解析器
-            final_parser_path = self.parsers_dir / "final_parser.py"
-            with open(final_parser_path, 'w', encoding='utf-8') as f:
-                f.write(parser_result['code'])
-            logger.success(f"最终解析器已生成并保存: {final_parser_path}")
-
-            # 设置最终解析器
-            result['final_parser'] = {
-                'parser_path': str(final_parser_path),
-                'code': parser_result['code'],
-                'config_path': None,
-                'config': final_schema,
-            }
-            result['parsers'].append(parser_result)
-            result['success'] = True
-
-            return result
-
-        except Exception as e:
-            logger.error(f"从Schema阶段生成解析器失败: {str(e)}")
-            import traceback
-            logger.debug(traceback.format_exc())
-            return result
-
-    def _generate_or_optimize_parser(
-        self,
-        html_content: str,
-        target_json: Dict,
-        round_num: int,
-        previous_parser_code: str = None,
-        parser_path: str = None
-    ) -> Dict:
-        """
-        生成或优化解析代码
-
-        第一轮：从0生成
-        后续轮：基于前一轮的代码进行优化
-
-        Args:
-            html_content: 当前轮的HTML内容
-            target_json: 当前合并的JSON Schema
-            round_num: 轮次号
-            previous_parser_code: 上一轮的解析代码
-            parser_path: 上一轮的解析器文件路径
-
-        Returns:
-            生成/优化结果
-        """
-        if round_num == 1:
-            # 第一轮：从0生成
-            logger.info("  第一轮: 从0生成解析代码...")
-            parser_result = generate_parser_code.invoke({
-                "html_content": html_content,
-                "target_json": target_json,
-                "output_dir": str(self.parsers_dir)
-            })
-        else:
-            # 后续轮：基于前一轮的代码进行优化
-            logger.info(f"  第 {round_num} 轮: 基于前一轮代码优化...")
-            parser_result = generate_parser_code.invoke({
-                "html_content": html_content,
-                "target_json": target_json,
-                "output_dir": str(self.parsers_dir),
-                "previous_parser_code": previous_parser_code,
-                "previous_parser_path": parser_path,
-                "round_num": round_num
-            })
-
-        return parser_result
 
     def _parse_all_html_with_final_parser(self, results: Dict, all_rounds: List[Dict]) -> None:
         """

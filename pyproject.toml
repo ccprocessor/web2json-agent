@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "web2json-agent"
+version = "2.0.0"
+description = "智能网页解析代码生成器 - 基于 AI 自动生成网页解析代码"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "YangGuoqiang", email = "1041206149@qq.com"}
+]
+keywords = [
+    "web scraping",
+    "html parser",
+    "ai agent",
+    "code generation",
+    "langchain",
+    "web automation"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Text Processing :: Markup :: HTML",
+]
+
+dependencies = [
+    "langchain==1.0.1",
+    "langchain-core==1.0.5",
+    "langchain-openai==1.0.3",
+    "langchain-anthropic==1.1.0",
+    "openai==2.8.1",
+    "pydantic==2.10.3",
+    "pydantic-settings==2.6.1",
+    "python-dotenv==1.1.0",
+    "loguru==0.7.3",
+    "DrissionPage==4.1.1.2",
+    "playwright==1.48.0",
+    "beautifulsoup4==4.12.3",
+    "lxml==5.3.0",
+    "requests==2.32.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ccprocessor/web2json-agent"
+Repository = "https://github.com/ccprocessor/web2json-agent.git"
+"Bug Tracker" = "https://github.com/ccprocessor/web2json-agent/issues"
+
+[project.scripts]
+web2json = "cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "agent*",
+    "tools*",
+    "prompts*",
+    "config*",
+    "utils*",
+]
+exclude = [
+    "tests*",
+    "docs*",
+    "output*",
+    "logs*",
+    "input_url*",
+    "doc*",
+]
+
+[tool.setuptools.package-data]
+"*" = [
+    "*.txt",
+    "*.json",
+    "*.yaml",
+    "*.md",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

@@ -1,7 +1,0 @@
-# URL列表示例
-# 每行一个URL，以 # 开头的行为注释
-
-# StackOverflow Blog 示例
-https://stackoverflow.blog/2024/11/13/your-docs-are-your-infrastructure/
-https://stackoverflow.blog/2025/10/28/craft-and-quality-beat-speed-and-scale-with-or-without-agents/
-https://stackoverflow.blog/2025/10/02/building-ai-ready-teams-why-documentation-and-culture-matter-more-than-tools/
