@@ -1,0 +1,21 @@
+# 包含必要的文档和配置文件
+include README.md
+include LICENSE
+include requirements.txt
+include .env.example
+include install_playwright.sh
+
+# 排除不必要的文件和目录
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+
+prune output
+prune logs
+prune doc
+prune input_url
+prune input_stack_blog
+prune .git
+prune .idea
+prune .pytest_cache

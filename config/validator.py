@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from loguru import logger
+from dotenv import load_dotenv
 
 
 class ConfigValidator:
@@ -69,6 +70,97 @@ class ConfigValidator:
                     logger.warning(f"  ! {var}: {desc}")
 
         return len(missing_required) == 0, [var for var, _ in missing_required]
+
+    @classmethod
+    def test_api_connection(cls, test_models: bool = True) -> Tuple[bool, Dict[str, str]]:
+        """
+        测试 API 连接和模型可用性
+
+        Args:
+            test_models: 是否测试模型连接（默认 True）
+
+        Returns:
+            (是否通过, 错误信息字典)
+        """
+        errors = {}
+
+        # 加载环境变量
+        env_path = Path.cwd() / ".env"
+        if env_path.exists():
+            load_dotenv(env_path, override=True)
+
+        api_key = os.getenv("OPENAI_API_KEY")
+        api_base = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+
+        if not api_key:
+            errors["api_key"] = "API 密钥未配置"
+            return False, errors
+
+        if not test_models:
+            return True, {}
+
+        # 测试模型连接
+        logger.info("正在测试 API 连接和模型可用性...")
+
+        try:
+            from langchain_openai import ChatOpenAI
+
+            # 获取要测试的模型列表
+            models_to_test = {
+                "Agent模型": os.getenv("AGENT_MODEL", "claude-sonnet-4-5-20250929"),
+                "代码生成模型": os.getenv("CODE_GEN_MODEL", "claude-sonnet-4-5-20250929"),
+                "视觉理解模型": os.getenv("VISION_MODEL", "qwen-vl-max"),
+            }
+
+            # 去重（避免重复测试相同模型）
+            unique_models = {}
+            for name, model in models_to_test.items():
+                if model not in unique_models.values():
+                    unique_models[name] = model
+
+            # 测试每个模型
+            for model_name, model_id in unique_models.items():
+                try:
+                    logger.info(f"  测试 {model_name}: {model_id}")
+
+                    client = ChatOpenAI(
+                        model=model_id,
+                        api_key=api_key,
+                        base_url=api_base,
+                        temperature=0,
+                        timeout=10
+                    )
+
+                    # 发送简单测试消息
+                    response = client.invoke([{"role": "user", "content": "test"}])
+
+                    if response and response.content:
+                        logger.success(f"  ✓ {model_name} 连接成功")
+                    else:
+                        errors[model_name] = "模型返回为空"
+                        logger.error(f"  ✗ {model_name} 返回为空")
+
+                except Exception as e:
+                    error_msg = str(e)
+                    errors[model_name] = error_msg
+                    logger.error(f"  ✗ {model_name} 连接失败: {error_msg}")
+
+            # 判断是否全部通过
+            if not errors:
+                logger.success("\n✓ 所有模型连接测试通过！")
+                return True, {}
+            else:
+                logger.error(f"\n✗ {len(errors)} 个模型连接失败")
+                return False, errors
+
+        except ImportError as e:
+            errors["import"] = f"依赖库导入失败: {e}"
+            logger.error(f"✗ 依赖库导入失败: {e}")
+            return False, errors
+        except Exception as e:
+            errors["unknown"] = f"未知错误: {e}"
+            logger.error(f"✗ 测试过程出错: {e}")
+            return False, errors
 
     @classmethod
     def create_env_file(cls, target_dir: Optional[Path] = None) -> Path:
@@ -261,12 +353,33 @@ HTML_KEEP_ATTRS=class,id,href,src,data-id
         print("\n正在验证配置...")
         is_valid, _ = cls.check_config(verbose=True)
 
-        if is_valid:
-            logger.success("\n✅ 配置完成！现在可以使用 web2json 命令了")
-            print("\n示例命令:")
-            print("  web2json -d input_html/ -o output/blog")
+        if not is_valid:
+            return False
 
-        return is_valid
+        # 询问是否测试 API 连接
+        print("\n是否测试 API 连接和模型可用性？(推荐)")
+        test_choice = input("  测试 API? (Y/n): ").strip().lower()
+
+        if test_choice != 'n':
+            print("\n🔌 测试 API 连接...\n")
+            api_valid, errors = cls.test_api_connection(test_models=True)
+
+            if not api_valid:
+                logger.error("\n❌ API 连接测试失败")
+                for model_name, error in errors.items():
+                    logger.error(f"  ✗ {model_name}: {error}")
+                print("\n请检查:")
+                print("  1. API 密钥是否正确")
+                print("  2. API Base URL 是否可访问")
+                print("  3. 模型名称是否正确")
+                print("  4. 网络连接是否正常")
+                return False
+
+        logger.success("\n✅ 配置完成！现在可以使用 web2json 命令了")
+        print("\n示例命令:")
+        print("  web2json -d input_html/ -o output/blog")
+
+        return True
 
 
 def check_config_or_guide():

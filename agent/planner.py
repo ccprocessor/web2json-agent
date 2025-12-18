@@ -15,14 +15,13 @@ class AgentPlanner:
         """初始化规划器（不再需要 LLM）"""
         pass
 
-    def create_plan(self, html_files: List[str], domain: str = None, layout_type: str = None) -> Dict:
+    def create_plan(self, html_files: List[str], domain: str = None) -> Dict:
         """
         创建解析任务计划
 
         Args:
             html_files: 待解析的HTML文件路径列表
             domain: 域名（可选）
-            layout_type: 布局类型（可选，如：blog, article, product等）
 
         Returns:
             执行计划字典
@@ -40,7 +39,6 @@ class AgentPlanner:
         # 构建标准执行计划
         plan = {
             'domain': domain,
-            'layout_type': layout_type or 'unknown',
             'total_files': len(html_files),
             'sample_files': sample_files,  # HTML文件路径列表
             'sample_urls': sample_files,   # 为了兼容性，保留这个字段
@@ -55,7 +53,6 @@ class AgentPlanner:
 
         logger.success(f"执行计划创建完成:")
         logger.info(f"  域名: {domain}")
-        logger.info(f"  布局类型: {layout_type or '自动识别'}")
         logger.info(f"  HTML文件数量: {num_samples}")
         logger.info(f"  Schema迭代: {num_samples}轮")
         logger.info(f"  代码迭代: {num_samples}轮")

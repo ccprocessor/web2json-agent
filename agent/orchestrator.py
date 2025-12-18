@@ -32,8 +32,7 @@ class ParserAgent:
     def generate_parser(
         self,
         html_files: List[str],
-        domain: str = None,
-        layout_type: str = None
+        domain: str = None
     ) -> Dict:
         """
         生成解析器
@@ -48,7 +47,6 @@ class ParserAgent:
         Args:
             html_files: HTML文件路径列表
             domain: 域名（可选）
-            layout_type: 布局类型（可选）
 
         Returns:
             生成结果
@@ -59,7 +57,7 @@ class ParserAgent:
 
         # 第一步：规划
         logger.info("\n[步骤 1/3] 任务规划")
-        plan = self.planner.create_plan(html_files, domain, layout_type)
+        plan = self.planner.create_plan(html_files, domain)
 
         # 第二步：执行（两阶段迭代）
         logger.info("\n[步骤 2/3] 执行计划 - 两阶段迭代")

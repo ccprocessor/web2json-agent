@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "web2json-agent"
-version = "2.1.1"
+version = "1.0.0"
 description = "智能网页解析代码生成器 - 基于 AI 自动生成网页解析代码"
 readme = "README.md"
 requires-python = ">=3.12"

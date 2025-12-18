@@ -77,14 +77,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 从目录读取HTML文件（推荐）
+  # 从目录读取HTML文件并生成解析器
   python main.py -d input_html/ -o output/blog
-
-  # 指定输出目录和页面类型
-  python main.py -d input_html/ -o output/blog -t blog_article
-
-  # 不验证，快速生成
-  python main.py -d input_html/ --no-validate
         """
     )
 
@@ -99,18 +93,8 @@ def main():
         help='输出目录（默认: output）'
     )
     parser.add_argument(
-        '-t', '--type',
-        dest='layout_type',
-        help='页面类型（如: blog_article, product_page, news_list）'
-    )
-    parser.add_argument(
         '--domain',
         help='域名（可选）'
-    )
-    parser.add_argument(
-        '--no-validate',
-        action='store_true',
-        help='跳过验证，直接生成代码'
     )
 
     args = parser.parse_args()
@@ -130,8 +114,7 @@ def main():
     # 生成解析器
     result = agent.generate_parser(
         html_files=html_files,
-        domain=args.domain,
-        layout_type=args.layout_type
+        domain=args.domain
     )
 
     # 输出结果
@@ -139,10 +122,6 @@ def main():
         logger.success("\n✓ 解析器生成成功!")
         logger.info(f"  解析器路径: {result['parser_path']}")
         logger.info(f"  配置路径: {result['config_path']}")
-
-        if not args.no_validate and 'validation_result' in result:
-            success_rate = result['validation_result']['success_rate']
-            logger.info(f"  验证成功率: {success_rate:.1%}")
 
         logger.info("\n使用方法:")
         logger.info(f"  python {result['parser_path']} <url_or_html_file>")

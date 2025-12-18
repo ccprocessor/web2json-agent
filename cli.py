@@ -17,8 +17,8 @@ def cmd_init(args):
 
     print("\n下一步:")
     print(f"  1. 编辑 {env_file}")
-    print("  2. 填入你的 API 密钥")
-    print("  3. 运行 'web2json check' 验证配置")
+    print("  2. 填入你的 API 密钥（OPENAI_API_KEY 和 OPENAI_API_BASE）")
+    print("  3. 运行 'web2json check --test-api' 检查API响应")
     print()
 
 
@@ -33,16 +33,33 @@ def cmd_check(args):
     print("\n🔍 检查配置...\n")
     is_valid, missing = ConfigValidator.check_config(verbose=True)
 
-    if is_valid:
-        print("\n✅ 配置检查通过！可以开始使用了")
-        print("\n示例命令:")
-        print("  web2json -d input_html/ -o output/blog")
-    else:
+    if not is_valid:
         print("\n❌ 配置不完整")
         print("\n解决方法:")
         print("  1. 运行 'web2json init' 创建配置文件")
         print("  2. 或运行 'web2json setup' 使用交互式配置向导")
         sys.exit(1)
+
+    # 如果基本配置通过，且用户要求测试 API
+    if args.test_api:
+        print("\n🔌 测试 API 连接...\n")
+        api_valid, errors = ConfigValidator.test_api_connection(test_models=True)
+
+        if not api_valid:
+            print("\n❌ API 连接测试失败")
+            for model_name, error in errors.items():
+                print(f"  ✗ {model_name}: {error}")
+            print("\n请检查:")
+            print("  1. API 密钥是否正确")
+            print("  2. API Base URL 是否可访问")
+            print("  3. 模型名称是否正确")
+            print("  4. 网络连接是否正常")
+            sys.exit(1)
+
+    print("\n✅ 所有检查通过！可以开始使用了")
+    print("\n示例命令:")
+    print("  web2json -d input_html/ -o output/blog")
+
 
 
 def cmd_generate(args):
@@ -73,8 +90,7 @@ def cmd_generate(args):
     # 生成解析器
     result = agent.generate_parser(
         html_files=html_files,
-        domain=args.domain,
-        layout_type=args.layout_type
+        domain=args.domain
     )
 
     # 输出结果
@@ -82,10 +98,6 @@ def cmd_generate(args):
         logger.success("\n✓ 解析器生成成功!")
         logger.info(f"  解析器路径: {result['parser_path']}")
         logger.info(f"  配置路径: {result['config_path']}")
-
-        if not args.no_validate and 'validation_result' in result:
-            success_rate = result['validation_result']['success_rate']
-            logger.info(f"  验证成功率: {success_rate:.1%}")
 
         logger.info("\n使用方法:")
         logger.info(f"  python {result['parser_path']} <url_or_html_file>")
@@ -110,11 +122,10 @@ def main():
 
   # 检查配置
   web2json check
+  web2json check --test-api
 
-  # 生成解析器
+  # 从目录读取HTML文件并生成解析器
   web2json -d input_html/ -o output/blog
-  web2json -d input_html/ -o output/blog -t blog_article
-  web2json -d input_html/ --no-validate
 
 更多信息: https://github.com/ccprocessor/web2json-agent
         """
@@ -136,6 +147,11 @@ def main():
 
     # check 命令
     parser_check = subparsers.add_parser('check', help='检查配置')
+    parser_check.add_argument(
+        '--test-api',
+        action='store_true',
+        help='测试 API 连接和模型可用性'
+    )
     parser_check.set_defaults(func=cmd_check)
 
     # 主命令参数（生成解析器）
@@ -149,18 +165,8 @@ def main():
         help='输出目录（默认: output）'
     )
     parser.add_argument(
-        '-t', '--type',
-        dest='layout_type',
-        help='页面类型（如: blog_article）'
-    )
-    parser.add_argument(
         '--domain',
         help='域名（可选）'
-    )
-    parser.add_argument(
-        '--no-validate',
-        action='store_true',
-        help='跳过验证'
     )
     parser.add_argument(
         '--skip-config-check',

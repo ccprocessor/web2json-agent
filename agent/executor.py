@@ -451,7 +451,7 @@ class AgentExecutor:
         # 设置最终解析器
         if current_parser_code:
             # 保存最终解析器
-            final_parser_path = self.parsers_dir / "final_parser.py"
+            final_parser_path = self.output_dir / "final_parser.py"
             with open(final_parser_path, 'w', encoding='utf-8') as f:
                 f.write(current_parser_code)
             logger.success(f"最终解析器已保存: {final_parser_path}")

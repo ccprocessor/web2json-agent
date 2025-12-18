@@ -24,6 +24,10 @@ class Settings(BaseModel):
     # ============================================
     # 模型配置
     # ============================================
+    # 默认模型（通用场景）
+    default_model: str = Field(default_factory=lambda: os.getenv("DEFAULT_MODEL", "claude-sonnet-4-5-20250929"))
+    default_temperature: float = Field(default_factory=lambda: float(os.getenv("DEFAULT_TEMPERATURE", "0.3")))
+
     # Agent
     agent_model: str = Field(default_factory=lambda: os.getenv("AGENT_MODEL", "claude-sonnet-4-5-20250929"))
     agent_temperature: float = Field(default_factory=lambda: float(os.getenv("AGENT_TEMPERATURE", "0")))
