@@ -201,7 +201,8 @@ web2json-agent/
 │   └── code_generator.py          # 代码生成
 │
 ├── prompts/                # Prompt 模板
-│   ├── schema_extraction.py       # Schema提取Prompt
+│   ├── schema_extraction.py       # Schema提取Prompt（HTML+视觉）
+│   ├── schema_merge.py            # Schema合并Prompt
 │   └── code_generator.py          # 代码生成Prompt
 │
 ├── config/                 # 配置
@@ -299,9 +300,14 @@ MIT License
 ---
 
 **最后更新**: 2025-12-18
-**版本**: 2.1.0
+**版本**: 2.1.1
 
 ## 更新日志
+
+### v2.1.1 (2025-12-18)
+- 📂 重构Prompts模块：将schema_extraction.py拆分为schema_extraction.py和schema_merge.py
+- 🎯 职责分离：提取和合并功能独立，便于维护
+- ✨ 更清晰的模块结构：每个模块职责单一明确
 
 ### v2.1.0 (2025-12-18)
 - 🧹 代码清理：移除近1000行冗余代码
