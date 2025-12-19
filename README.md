@@ -6,6 +6,86 @@
 
 **web2json-agent** 是一个基于 AI 的智能代码生成工具，能够**自动分析网页结构并生成高质量的 Python 解析代码**。
 
+### 📋 示例
+
+**输入：复杂的 HTML 网页**（知乎问答页面，充满杂乱标签和噪音）
+```html
+<!doctype html>
+<html lang="zh" data-hairline="true" data-apple="true" class="itcauecng" data-theme="light">
+<head>
+  <meta charSet="utf-8"/>
+  <title>海南自贸港12月18日即将封关，「零关税」和「双15%」个税优惠政策将有什么变化？...</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+  <meta name="renderer" content="webkit"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+  <!-- ...大量meta标签、link标签等噪音... -->
+</head>
+<body>
+  <div class="question-header">
+    <h1>海南自贸港12月18日即将封关，「零关税」和「双15%」个税优惠政策...</h1>
+    <div class="author">每日经济新闻 <span class="badge">已认证机构号</span></div>
+    <div class="question-detail">12月18日，海南自由贸易港将正式启动...</div>
+    <div class="tags">
+      <a>投资</a><a>商业</a><a>股票</a><a>海南</a>
+    </div>
+    <div class="stats">183,426 次浏览 • 54 个回答</div>
+  </div>
+
+  <!-- 回答列表 -->
+  <div class="answer-list">
+    <article class="answer">
+      <div class="author-info">
+        <span class="name">Saka财经</span>
+        <span class="badge">CPA 注册会计师资格证持证人</span>
+      </div>
+      <div class="content">海南这次一定要接住这个橄榄枝，飞速发展的机会...</div>
+      <div class="meta">编辑于 2025-12-16 15:42</div>
+    </article>
+
+    <article class="answer">
+      <div class="author-info">
+        <span class="name">闻号说经济</span>
+        <span class="badge">CFA 注册金融分析师资格证持证人</span>
+      </div>
+      <div class="content">2025年12月18日，海南自贸港将正式启动全岛封关运作...</div>
+      <div class="meta">发布于 2025-12-16 12:31</div>
+    </article>
+  </div>
+
+  <!-- ...更多广告、导航、推荐内容等噪音... -->
+</body>
+</html>
+```
+
+**输出：干净的结构化 JSON**（自动提取核心内容，过滤噪音，识别复杂的嵌套结构）
+```json
+{
+  "title": "海南自贸港12月18日即将封关，「零关税」和「双15%」个税优惠政策将有什么变化？...",
+  "question_author": "每日经济新闻",
+  "question_author_badge": "已认证机构号",
+  "question_description": "12月18日，海南自由贸易港将正式启动全岛封关运作...",
+  "topics": ["投资", "商业", "股票", "海南", "海纳百川开放共赢"],
+  "view_count": "183,426",
+  "answer_count": "54 个回答",
+  "answers": [
+    {
+      "author": "Saka财经",
+      "author_badge": "CPA 注册会计师资格证持证人",
+      "content": "海南这次一定要接住这个橄榄枝，飞速发展的机会...",
+      "publish_time": "编辑于 2025-12-16 15:42"
+    },
+    {
+      "author": "闻号说经济",
+      "author_badge": "CFA 注册金融分析师资格证持证人",
+      "content": "2025年12月18日，海南自贸港将正式启动全岛封关运作...",
+      "publish_time": "发布于 2025-12-16 12:31"
+    }
+  ]
+}
+```
+
+✨ **自动识别并提取**：标题、作者、话题标签、统计数据、**回答列表**（包含嵌套的作者信息、内容、时间等）
+
 ### ✨ 核心价值
 
 传统方式开发网页解析器，你需要：
@@ -55,72 +135,21 @@
 
 适合**直接使用**工具的用户
 
-#### 第 1 步：安装包
-
 ```bash
+# 1. 安装包
 pip install web2json-agent
-```
 
-#### 第 2 步：初始化配置
+# 2. 初始化配置
+web2json setup  # 交互式配置（推荐）
+# 或手动配置：web2json init && vim .env
 
-**选项 A：交互式配置向导（推荐）**
-```bash
-web2json setup
-# 按提示输入 API 密钥和配置
-```
-
-**选项 B：手动配置**
-```bash
-# 创建配置文件模板
-web2json init
-
-# 编辑 .env 文件，填入你的 API 配置
-vim .env  # 或者手动修改
-```
-
-**必填配置项**（在 `.env` 文件中修改）：
-```bash
-OPENAI_API_KEY=your_api_key_here          # 你的 API 密钥
-OPENAI_API_BASE=https://api.openai.com/v1  # API 地址
-```
-
-#### 第 3 步：验证配置
-
-```bash
-# 检查配置
-web2json check
-
-# 测试 API 连接（推荐）
-web2json check --test-api
-```
-
-#### 第 4 步：准备 HTML 文件
-
-在任意目录下放置 **2-5 个**同类型网页的 HTML 源码文件：
-
-```bash
-mkdir html_samples
-# 将 HTML 文件放入 html_samples/ 目录
-```
-
-#### 第 5 步：生成解析器
-
-```bash
-# 基础用法
+# 3. 准备HTML文件并生成解析器
+mkdir html_samples  # 放入 2-5 个同类型HTML文件
 web2json -d html_samples/ -o output/blog
 
-# 指定页面类型（可选）
-web2json -d html_samples/ -o output/blog --domain blog_article
-```
-
-#### 第 6 步：使用生成的解析器
-
-```bash
-# 解析单个文件
-python output/blog/final_parser.py example.html
-
-# 解析URL
-python output/blog/final_parser.py https://example.com/article
+# 4. 使用生成的解析器
+python output/blog/final_parser.py example.html              # 解析HTML文件
+python output/blog/final_parser.py https://example.com       # 解析URL
 ```
 
 ---
@@ -129,112 +158,31 @@ python output/blog/final_parser.py https://example.com/article
 
 适合**开发者**和**贡献者**
 
-#### 第 1 步：克隆项目并安装依赖
-
 ```bash
-# 克隆项目
+# 1. 克隆项目并安装依赖
 git clone https://github.com/ccprocessor/web2json-agent.git
 cd web2json-agent
-
-# 安装依赖
 pip install -r requirements.txt
-```
 
-#### 第 2 步：配置 API 密钥（⚠️ 必需）
-
-```bash
-# 复制配置模板
+# 2. 配置 API 密钥
 cp .env.example .env
+vim .env  # 填入 OPENAI_API_KEY 和 OPENAI_API_BASE
 
-# 编辑 .env 文件，填入你的 API 配置
-vim .env  # 或使用其他编辑器
-```
+# 3. 生成解析器（html_samples/ 目录已有示例）
+python main.py -d html_samples/ -o output/blog
 
-**必填配置项**（在 `.env` 文件中修改）：
-
-```bash
-OPENAI_API_KEY=your_api_key_here          # 你的 API 密钥
-OPENAI_API_BASE=https://api.openai.com/v1  # API 地址
-```
-> 更多配置选项请查看 `.env.example` 文件
-
-#### 第 3 步：准备 HTML 文件
-
-在 `input_html/` 目录下放置 **2-5 个**同类型网页的 HTML 源码文件（已有示例）
-
-#### 第 4 步：运行解析器生成
-
-```bash
-# 基础用法
-python main.py -d input_html/ -o output/blog
-
-# 指定页面类型（可选）
-python main.py -d input_html/ -o output/blog --domain blog_article
-```
-
-#### 第 5 步：使用生成的解析器
-
-生成完成后，解析器代码保存在 `output/blog/final_parser.py`
-
-**使用方式 A：使用 demo.py（推荐）**
-
-项目根目录提供了通用的 `demo.py` 脚本，自动查找最新的解析器：
-
-```bash
-# 自动使用最新的解析器解析单个文件
-python demo.py example.html
-
-# 批量解析目录
-python demo.py -d input_html/
-
-# 批量解析并保存结果
-python demo.py -d input_html/ -o results.json
-
-# 指定特定的解析器
-python demo.py -p output/blog/final_parser.py example.html
-
-# 解析URL（需要安装 DrissionPage）
-python demo.py https://example.com/article
-```
-
-**使用方式 B：直接运行 final_parser.py**
-
-生成的解析器可以直接作为命令行工具使用：
-
-```bash
-# 解析单个文件
-python output/blog/final_parser.py example.html
-
-# 解析URL
-python output/blog/final_parser.py https://example.com/article
-```
-
-**使用方式 C：在你的代码中导入**
-
-```python
-import sys
-from pathlib import Path
-
-# 添加解析器路径
-sys.path.insert(0, 'output/blog')
-from final_parser import WebPageParser
-
-# 使用解析器
-html_content = Path('example.html').read_text(encoding='utf-8')
-parser = WebPageParser()
-data = parser.parse(html_content)
-print(data)
+# 4. 使用生成的解析器
+python output/blog/final_parser.py example.html              # 解析HTML文件
+python output/blog/final_parser.py https://example.com       # 解析URL
 ```
 
 ---
 
 ## 💡 使用技巧
 
-- **HTML 文件数量**：建议准备 2-5 个同类型页面，太少提取不准，太多增加成本
-- **快速上手**：直接使用根目录的 `demo.py`，会自动找到最新的解析器
-- **批量处理**：`python demo.py -d html_dir -o results.json` 可批量解析并保存结果
+- **HTML 文件数量**：输入 2-5 个同类型页面即可得到比较好的解析效果
 - **查看中间结果**：生成过程中的 Schema 和截图都保存在 `output/` 目录中
-- **调整模型配置**：如果结果不理想，可以在 `.env` 中更换更强大的模型
+- **调整模型配置**：Schema 生成/代码生成阶段使用的模型可以在 `.env` 中修改
 
 ---
 
@@ -281,7 +229,6 @@ web2json-agent/
 │       └── final_parser.py    # 最终解析器（可直接运行）
 │
 ├── main.py                # 命令行入口
-├── demo.py                # 通用Demo脚本（使用解析器）
 └── requirements.txt       # 依赖列表
 ```
 
@@ -335,14 +282,11 @@ web2json-agent/
 ```python
 {
     'success': bool,              # 是否成功
+    'plan': dict,                 # 执行计划
+    'execution_result': dict,     # 执行结果（包含两阶段迭代详情）
+    'summary': str,               # 执行总结
     'parser_path': str,           # 解析器路径
-    'config_path': str,           # 配置文件路径
-    'validation_result': {        # 验证结果
-        'success': bool,
-        'success_rate': float,    # 成功率 (0.0-1.0)
-        'tests': [...]            # 测试详情
-    },
-    'error': str                  # 错误信息（如果失败）
+    'config_path': str            # 配置文件路径
 }
 ```
 
