@@ -64,27 +64,24 @@ Repository = "https://github.com/ccprocessor/web2json-agent.git"
 "Bug Tracker" = "https://github.com/ccprocessor/web2json-agent/issues"
 
 [project.scripts]
-web2json = "cli:main"
-
-[tool.setuptools]
-py-modules = ["cli", "main"]
+web2json = "web2json.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = [
-    "agent*",
-    "tools*",
-    "prompts*",
-    "config*",
-    "utils*",
+    "web2json*",
 ]
 exclude = [
     "tests*",
     "docs*",
+    "examples*",
     "output*",
     "logs*",
+    "input_html*",
     "input_url*",
-    "doc*",
+    "evaluation*",
+    "evaluationSet*",
+    "swde_*",
 ]
 
 [tool.setuptools.package-data]

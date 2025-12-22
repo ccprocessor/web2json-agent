@@ -7,9 +7,9 @@ import os
 from pathlib import Path
 from typing import Dict
 from loguru import logger
-from config.settings import settings
+from web2json.config.settings import settings
 from langchain_core.tools import tool
-from prompts.code_generator import CodeGeneratorPrompts
+from web2json.prompts.code_generator import CodeGeneratorPrompts
 
 
 @tool
@@ -42,7 +42,7 @@ def generate_parser_code(
             logger.info(f"正在基于前一轮代码优化（第 {round_num} 轮）...")
 
         # 使用封装的 LLMClient 以支持 token 追踪
-        from utils.llm_client import LLMClient
+        from web2json.utils.llm_client import LLMClient
 
         llm_client = LLMClient(
             model=settings.code_gen_model,

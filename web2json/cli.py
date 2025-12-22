@@ -5,7 +5,7 @@ web2json-agent CLI 入口点
 import sys
 import argparse
 from pathlib import Path
-from config.validator import ConfigValidator, check_config_or_guide
+from web2json.config.validator import ConfigValidator, check_config_or_guide
 
 
 def cmd_init(args):
@@ -69,13 +69,13 @@ def cmd_generate(args):
         check_config_or_guide()
 
     # 导入并执行主程序
-    from main import (
+    from web2json.main import (
         main as main_func,
         setup_logger,
         read_html_files_from_directory,
         generate_parsers_by_layout_clusters
     )
-    from agent import ParserAgent
+    from web2json.agent import ParserAgent
     from loguru import logger
 
     setup_logger()

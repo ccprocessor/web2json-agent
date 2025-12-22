@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from loguru import logger
-from config.settings import settings
+from web2json.config.settings import settings
 from langchain_core.tools import tool
 from typing import Optional
 

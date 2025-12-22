@@ -4,7 +4,7 @@
 使用少量数据快速演示聚类进度条效果
 """
 from pathlib import Path
-from tools import cluster_html_layouts
+from web2json.tools import cluster_html_layouts
 
 def demo_small_scale():
     """演示：使用50个样本的小规模测试"""

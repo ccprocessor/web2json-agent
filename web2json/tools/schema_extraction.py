@@ -10,9 +10,9 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 import os
 
-from config.settings import settings
-from prompts.schema_extraction import SchemaExtractionPrompts
-from prompts.schema_merge import SchemaMergePrompts
+from web2json.config.settings import settings
+from web2json.prompts.schema_extraction import SchemaExtractionPrompts
+from web2json.prompts.schema_merge import SchemaMergePrompts
 
 
 def _parse_llm_response(response: str) -> Dict:

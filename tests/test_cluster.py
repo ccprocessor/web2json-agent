@@ -8,7 +8,7 @@ from typing import List
 
 import pytest
 
-from tools import cluster_html_layouts, get_feature
+from web2json.tools import cluster_html_layouts, get_feature
 
 
 class TestCluster:

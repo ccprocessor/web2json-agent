@@ -11,8 +11,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from loguru import logger
 
-from config.settings import settings
-from tools import (
+from web2json.config.settings import settings
+from web2json.tools import (
     get_html_from_file,  # 从本地文件读取HTML工具
     capture_html_file_screenshot,  # 渲染本地HTML并截图工具
     close_browser,  # 关闭浏览器实例
@@ -22,7 +22,7 @@ from tools import (
     merge_html_and_visual_schema,  # 合并单个HTML的两种Schema
     merge_multiple_schemas,  # 合并多个HTML的Schema
 )
-from tools.html_simplifier import simplify_html  # HTML精简工具
+from web2json.tools.html_simplifier import simplify_html  # HTML精简工具
 
 
 class AgentExecutor:

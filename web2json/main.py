@@ -7,8 +7,8 @@ import argparse
 import warnings
 from pathlib import Path
 from loguru import logger
-from agent import ParserAgent
-from tools.cluster import cluster_html_layouts
+from web2json.agent import ParserAgent
+from web2json.tools.cluster import cluster_html_layouts
 
 # 过滤 LangSmith UUID v7 警告
 warnings.filterwarnings('ignore', message='.*LangSmith now uses UUID v7.*')
@@ -86,7 +86,7 @@ def generate_parsers_by_layout_clusters(
     """
     from pathlib import Path
     import shutil
-    from config.settings import settings
+    from web2json.config.settings import settings
 
     # 使用配置中的默认值
     if eps is None:
@@ -256,7 +256,7 @@ def main():
         epilog="""
 示例:
   # 从目录读取HTML文件并生成解析器
-  python main.py -d input_html/ -o output/blog
+  python web2json/main.py -d input_html/ -o output/blog
         """
     )
 

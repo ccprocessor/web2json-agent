@@ -10,7 +10,7 @@ import tiktoken
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from loguru import logger
-from config.settings import settings
+from web2json.config.settings import settings
 
 # 加载项目根目录的 .env 文件
 project_root = Path(__file__).parent.parent

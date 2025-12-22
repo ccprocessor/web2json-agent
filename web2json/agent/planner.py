@@ -5,7 +5,7 @@ Agent 规划器
 from typing import List, Dict
 from pathlib import Path
 from loguru import logger
-from config.settings import settings
+from web2json.config.settings import settings
 
 
 class AgentPlanner:
