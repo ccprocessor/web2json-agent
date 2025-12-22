@@ -90,7 +90,8 @@ def cmd_generate(args):
     # 生成解析器
     result = agent.generate_parser(
         html_files=html_files,
-        domain=args.domain
+        domain=args.domain,
+        iteration_rounds=getattr(args, 'iteration_rounds', None)
     )
 
     # 输出结果
@@ -167,6 +168,11 @@ def main():
     parser.add_argument(
         '--domain',
         help='域名（可选）'
+    )
+    parser.add_argument(
+        '--iteration-rounds',
+        type=int,
+        help='迭代轮数（用于Schema学习的样本数量，默认: 3）'
     )
     parser.add_argument(
         '--skip-config-check',

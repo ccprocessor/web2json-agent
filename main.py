@@ -96,6 +96,11 @@ def main():
         '--domain',
         help='域名（可选）'
     )
+    parser.add_argument(
+        '--iteration-rounds',
+        type=int,
+        help='迭代轮数（用于Schema学习的样本数量，默认: 3）'
+    )
 
     args = parser.parse_args()
 
@@ -114,7 +119,8 @@ def main():
     # 生成解析器
     result = agent.generate_parser(
         html_files=html_files,
-        domain=args.domain
+        domain=args.domain,
+        iteration_rounds=args.iteration_rounds
     )
 
     # 输出结果
