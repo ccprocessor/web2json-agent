@@ -119,20 +119,6 @@
 - **🚀 原型快速验证** - 分钟级验证数据提取可行性，无需手写代码
 - **📚 学习参考** - 生成的代码可作为学习 BeautifulSoup 和 XPath 的最佳实践示例
 
-### 🔧 工作流程
-
-**完整流程说明**：
-
-1. **📥 输入网页数据** - 提供 HTML 源码文件目录
-2. **🎯 智能样本选择** - 自动选择代表性样例（默认前 3 个，可配置）
-3. **🧠 Schema 学习与代码迭代** - HTML智能分析 → 提取数据模式 → 智能合并优化
-   - 🚀 **并行优化**：多个样本的 Schema 提取和合并自动并发执行，大幅提升速度
-4. **⚙️ 生成高质量解析器** - 输出可直接使用的 Python 代码
-5. **⚡ 自动批量处理** - 自动使用生成的解析器对**所有网页**进行批量解析
-6. **📊 获得结构化数据** - 所有网页转换为统一的富含语义信息的结构化 JSON 格式
-
-> **注**：系统会自动完成从样本学习到批量解析的全流程，无需手动调用解析器。Schema 学习阶段已优化为并行处理，3 个样本的学习时间从约 18 秒降至约 6 秒（节省 70%）。
-
 ---
 
 ## 🚀 快速开始
@@ -161,106 +147,15 @@ web2json -d html_samples/ -o output/result
 
 ---
 
-## 🎯 Schema模式
-
-web2json-agent 支持两种Schema模式，满足不同场景需求：
-
-### 模式1：自动模式 (auto) - 默认
-
-**适用场景**：快速探索，不确定需要提取哪些字段
+## 🎯 Schema模式（定制要抽取的字段）
 
 ```bash
-# 使用默认自动模式
+# 模式1：自动模式 (auto) - 快速探索，不确定需要提取哪些字段
 web2json -d html_samples/ -o output/result
-```
 
-- ✅ Agent自动分析HTML，智能判断并筛选有价值的字段
-- ✅ 自动过滤广告、导航等无关元素
-- ✅ 适合快速上手，无需预先定义Schema
-
-### 模式2：预定义模式 (predefined)
-
-**适用场景**：明确知道需要提取哪些字段，需要精确控制输出结构
-
-#### 方式1：交互式输入（推荐，快速上手）
-
-只需输入字段名，自动生成Schema模板并继续流程：
-
-```bash
+# 模式2：预定义模式 (predefined) - 明确知道需要提取哪些字段，需要精确控制输出结构
 web2json -d html_samples/ -o output/result --interactive-schema
 ```
-
-**交互流程**：
-```
-请输入需要提取的字段名，用空格分隔（例如: price fuel_economy engine model）
-请输入字段名: price fuel_economy engine model
-
-生成的Schema模板：
-{
-  "price": {
-    "type": "",
-    "description": "",
-    "value_sample": "",
-    "xpaths": [""]
-  },
-  "fuel_economy": {...},
-  "engine": {...},
-  "model": {...}
-}
-
-确认使用这个Schema模板吗？(y/n): y
-✓ Schema模板已确认
-```
-
-然后系统会自动：
-1. 分析HTML并为每个字段补充xpath
-2. 生成解析器代码
-3. 批量解析所有HTML文件
-
-#### 方式2：使用Schema模板文件
-
-**步骤1：创建Schema模板**（`schema_template.json`）
-```json
-{
-  "title": {
-    "type": "string",
-    "description": "文章标题"
-  },
-  "author": {
-    "type": "string",
-    "description": "作者姓名"
-  },
-  "content": {
-    "type": "string",
-    "description": "文章正文内容"
-  }
-}
-```
-
-**步骤2：使用预定义模式**
-```bash
-web2json -d html_samples/ -o output/result \
-  --schema-mode predefined \
-  --schema-template html_samples/schema_template.json
-```
-
-**特点**：
-- ✅ 用户预先定义字段（key、type、description）
-- ✅ Agent只补充技术细节（xpath、value_sample）
-- ✅ 输出结构完全固定，适合生产环境
-- ✅ 字段key保持不变，确保下游系统兼容
-
-**模式对比**：
-
-| 特性 | 自动模式 | 预定义模式（交互式） | 预定义模式（文件） |
-|------|---------|-------------------|------------------|
-| 字段来源 | Agent自动发现 | 用户交互式输入 | 用户预先定义文件 |
-| 输出稳定性 | 可能变化 | 完全固定 | 完全固定 |
-| 使用门槛 | 低（零配置） | 低（命令行输入） | 中（需创建JSON文件） |
-| 适用场景 | 快速探索、原型 | 明确字段、快速验证 | 生产环境、精确控制 |
-| 配置方式 | 无需配置 | `--interactive-schema` | `--schema-template file.json` |
-
-📚 **详细文档**：参见 `docs/schema_modes.md` 和 `docs/schema_template_example.json`
 
 ---
 
@@ -270,5 +165,5 @@ MIT License
 
 ---
 
-**最后更新**: 2025-12-23
-**版本**: 1.0.2
+**最后更新**: 2025-12-25
+**版本**: 1.1.0

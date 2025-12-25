@@ -27,8 +27,6 @@ class AgentPlanner:
         Returns:
             执行计划字典
         """
-        logger.info(f"正在为 {len(html_files)} 个HTML文件创建执行计划...")
-
         # 如果没有提供域名，使用默认值
         if not domain:
             domain = "local_html_files"
@@ -62,13 +60,6 @@ class AgentPlanner:
             ],
         }
 
-        logger.success(f"执行计划创建完成:")
-        logger.info(f"  域名: {domain}")
-        logger.info(f"  总HTML文件数量: {len(html_files)}")
-        logger.info(f"  迭代学习样本数量: {num_samples}")
-        logger.info(f"  Schema迭代: {num_samples}轮")
-        logger.info(f"  代码迭代: {num_samples}轮")
-        logger.info(f"  批量解析数量: {len(html_files)}个")
-        logger.info(f"  执行步骤: {len(plan['steps'])} 个")
+        logger.success(f"执行计划创建完成: 域名={domain}, 总文件={len(html_files)}, 学习样本={num_samples}, 迭代={num_samples}轮, 批量解析={len(html_files)}个")
 
         return plan
