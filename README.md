@@ -6,11 +6,11 @@
 
 **web2json-agent** 是一个智能数据结构化解析工具，能够**自动分析网页结构并生成高质量的 Python 解析代码，并自动进行数据解析**。
 
-📚 **完整项目总结**：查看 [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md) 了解架构设计、技术流程、性能优化历程等详细信息。
+📚 **完整项目总结**：查看 [docs/PROJECT_SUMMARY.md](doc/PROJECT_SUMMARY.md) 了解架构设计、技术流程、性能优化历程等详细信息。
 
 如下图所示，只需提供网页 URL 或 HTML 源码，web2json-agent 会自动智能选取样例、分析页面结构、识别数据模式、生成解析器代码，并对所有网页进行高速批量处理，最终输出结构化数据，让你从繁琐的选择器编写和调试中解放出来。
 
-![img.png](img.png)
+![img.png](docs/img.png)
 
 ### ✨ 核心价值对比
 

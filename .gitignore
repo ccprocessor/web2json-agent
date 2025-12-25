@@ -57,7 +57,7 @@ output_*/
 
 # Documentation build
 doc/_build/
-docs/_build/
+doc/_build/
 
 # Jupyter Notebook
 .ipynb_checkpoints
