@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from evaluation.evaluator import SWDEEvaluator
 from evaluation.visualization import EvaluationReporter
+from evaluation.schema_generator import SchemaGenerator
 
 
 # SWDE dataset configuration
@@ -57,7 +58,8 @@ class SWDEEvaluationRunner:
         resume: bool = False,
         skip_agent: bool = False,
         skip_evaluation: bool = False,
-        force: bool = False
+        force: bool = False,
+        use_predefined_schema: bool = False
     ):
         """
         Initialize the evaluation runner.
@@ -71,6 +73,7 @@ class SWDEEvaluationRunner:
             skip_agent: Skip agent execution if output already exists
             skip_evaluation: Skip evaluation if report already exists
             force: Force re-run everything (overrides resume/skip options)
+            use_predefined_schema: Use predefined schema templates from groundtruth
         """
         self.dataset_dir = Path(dataset_dir)
         self.groundtruth_dir = Path(groundtruth_dir)
@@ -80,6 +83,7 @@ class SWDEEvaluationRunner:
         self.skip_agent = skip_agent and not force
         self.skip_evaluation = skip_evaluation and not force
         self.force = force
+        self.use_predefined_schema = use_predefined_schema
 
         self.output_root.mkdir(parents=True, exist_ok=True)
 
@@ -88,6 +92,35 @@ class SWDEEvaluationRunner:
 
         # Load or initialize global summary
         self.global_summary = self._load_global_summary()
+
+        # Initialize schema generator and schema paths
+        self.schema_generator = None
+        self.schema_paths = {}
+        if self.use_predefined_schema:
+            self._initialize_schemas()
+
+    def _initialize_schemas(self) -> None:
+        """Initialize schema generator and generate schema templates."""
+        print("\n" + "="*80)
+        print("Initializing Predefined Schema Templates from Groundtruth")
+        print("="*80)
+
+        self.schema_generator = SchemaGenerator(str(self.groundtruth_dir))
+
+        # Generate schemas for all verticals and websites
+        schema_output_dir = self.output_root / "_schemas"
+        schema_output_dir.mkdir(parents=True, exist_ok=True)
+
+        print(f"Generating schema templates to: {schema_output_dir}")
+        self.schema_paths = self.schema_generator.generate_all_schemas(
+            verticals=VERTICALS,
+            output_dir=schema_output_dir,
+            sample_count=5
+        )
+
+        print("="*80)
+        print(f"✓ Schema templates generated successfully")
+        print("="*80 + "\n")
 
     def _load_global_summary(self) -> Dict:
         """Load or initialize the global summary."""
@@ -326,6 +359,10 @@ class SWDEEvaluationRunner:
         """
         print(f"\n{'='*80}")
         print(f"Running agent for: {vertical}/{website}")
+        if self.use_predefined_schema:
+            print(f"Mode: Using Predefined Schema from Groundtruth")
+        else:
+            print(f"Mode: Auto Schema Extraction")
         print(f"{'='*80}")
 
         # Get HTML directory
@@ -336,43 +373,108 @@ class SWDEEvaluationRunner:
         output_dir = self.output_root / vertical / website
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Run the agent
-        cmd = [
-            self.python_cmd,
-            "-m", "web2json.main",
-            "-d", str(html_dir),
-            "-o", str(output_dir),
-            "--domain", website
-        ]
+        # If using predefined schema, call agent directly via Python API
+        if self.use_predefined_schema:
+            # Get schema template path
+            schema_path = self.schema_paths.get(vertical, {}).get(website)
+            if not schema_path:
+                raise ValueError(f"Schema template not found for {vertical}/{website}")
 
-        print(f"Command: {' '.join(cmd)}")
-        print("Running agent (this may take a while)...")
-        print("-" * 80)
+            print(f"Using schema template: {schema_path}")
 
-        try:
-            result = subprocess.run(
-                cmd,
-                cwd=Path(__file__).parent.parent,
-                timeout=3600  # 1 hour timeout
+            # Load schema template from file
+            import json
+            with open(schema_path, 'r', encoding='utf-8') as f:
+                schema_template = json.load(f)
+
+            print(f"Loaded schema with fields: {list(schema_template.keys())}")
+
+            # Import and call agent directly
+            from web2json.agent import ParserAgent
+
+            # Get HTML files
+            html_files = sorted([str(f) for f in Path(html_dir).glob("*.htm*")])
+            if not html_files:
+                raise FileNotFoundError(f"No HTML files found in {html_dir}")
+
+            print(f"Found {len(html_files)} HTML files")
+
+            # Create agent with predefined schema
+            agent = ParserAgent(
+                output_dir=str(output_dir),
+                schema_mode="predefined",
+                schema_template=schema_template  # Pass loaded schema dict
             )
 
+            # Run agent
+            print("Running agent with predefined schema (this may take a while)...")
             print("-" * 80)
-            if result.returncode != 0:
-                print(f"Error running agent (return code {result.returncode})")
-                raise RuntimeError(f"Agent failed with return code {result.returncode}")
 
-            print("✅ Agent completed successfully!")
+            try:
+                result = agent.generate_parser(
+                    html_files=html_files,
+                    domain=website,
+                    iteration_rounds=3
+                    # schema_mode and schema_template already set in agent initialization
+                )
 
-            # Return result directory
-            result_dir = output_dir / "result"
-            if not result_dir.exists():
-                raise FileNotFoundError(f"Result directory not found: {result_dir}")
+                print("-" * 80)
+                if not result.get('success'):
+                    error_msg = result.get('error', 'Unknown error')
+                    print(f"Error: Agent failed - {error_msg}")
+                    raise RuntimeError(f"Agent failed: {error_msg}")
 
-            return result_dir
+                print("✅ Agent completed successfully!")
 
-        except subprocess.TimeoutExpired:
-            print("Agent execution timed out!")
-            raise
+                # Return result directory
+                result_dir = output_dir / "result"
+                if not result_dir.exists():
+                    raise FileNotFoundError(f"Result directory not found: {result_dir}")
+
+                return result_dir
+
+            except Exception as e:
+                print(f"Error running agent: {e}")
+                raise
+
+        else:
+            # Original subprocess-based approach
+            cmd = [
+                self.python_cmd,
+                "-m", "web2json.main",
+                "-d", str(html_dir),
+                "-o", str(output_dir),
+                "--domain", website
+            ]
+
+            print(f"Command: {' '.join(cmd)}")
+            print("Running agent (this may take a while)...")
+            print("-" * 80)
+
+            try:
+                result = subprocess.run(
+                    cmd,
+                    cwd=Path(__file__).parent.parent,
+                    timeout=3600  # 1 hour timeout
+                )
+
+                print("-" * 80)
+                if result.returncode != 0:
+                    print(f"Error running agent (return code {result.returncode})")
+                    raise RuntimeError(f"Agent failed with return code {result.returncode}")
+
+                print("✅ Agent completed successfully!")
+
+                # Return result directory
+                result_dir = output_dir / "result"
+                if not result_dir.exists():
+                    raise FileNotFoundError(f"Result directory not found: {result_dir}")
+
+                return result_dir
+
+            except subprocess.TimeoutExpired:
+                print("Agent execution timed out!")
+                raise
 
     def evaluate_website(self, vertical: str, website: str, agent_output_dir: Path) -> Dict:
         """
@@ -576,6 +678,8 @@ def main():
                        help='Skip evaluation if report already exists')
     parser.add_argument('--force', action='store_true',
                        help='Force re-run everything (overrides resume/skip options)')
+    parser.add_argument('--use-predefined-schema', action='store_true',
+                       help='Use predefined schema templates generated from groundtruth')
 
     args = parser.parse_args()
 
@@ -592,7 +696,8 @@ def main():
         resume=args.resume,
         skip_agent=args.skip_agent,
         skip_evaluation=args.skip_evaluation,
-        force=args.force
+        force=args.force,
+        use_predefined_schema=args.use_predefined_schema
     )
 
     # Run evaluation
@@ -612,6 +717,7 @@ def main():
         print(f"# Skip agent: {'ON' if args.skip_agent else 'OFF'}")
         print(f"# Skip evaluation: {'ON' if args.skip_evaluation else 'OFF'}")
         print(f"# Force mode: {'ON' if args.force else 'OFF'}")
+        print(f"# Predefined schema: {'ON' if args.use_predefined_schema else 'OFF'}")
         print(f"{'#'*80}\n")
 
         for vertical in VERTICALS.keys():

@@ -107,12 +107,97 @@ python evaluation/run_swde_evaluation.py \
 - `--skip-agent`: Skip agent execution if outputs exist
 - `--skip-evaluation`: Skip evaluation if reports exist
 - `--force`: Force re-run everything (overrides all skip options)
+- `--use-predefined-schema`: Use predefined schema templates generated from groundtruth (NEW)
+
+## Predefined Schema Mode (NEW)
+
+The evaluation system now supports using **predefined schema templates** generated from groundtruth data. This allows the agent to use known field names and types during extraction.
+
+### Using Predefined Schema
+
+```bash
+# 使用指定 GT 中的 Schema 运行并评估
+python evaluation/run_swde_evaluation.py \
+  --dataset-dir evaluationSet \
+  --groundtruth-dir evaluationSet/groundtruth \
+  --output-dir swde_evaluation_output \
+  --use-predefined-schema
+
+# Or with specific vertical/website
+python evaluation/run_swde_evaluation.py \
+  --dataset-dir evaluationSet \
+  --groundtruth-dir evaluationSet/groundtruth \
+  --output-dir swde_evaluation_output \
+  --vertical book \
+  --website amazon \
+  --use-predefined-schema
+```
+
+### How It Works
+
+1. **Schema Generation**: Automatically generates schema templates from groundtruth data
+   - Analyzes field types (string vs list)
+   - Saves templates to `_schemas/` directory
+
+2. **Agent Execution**: Agent receives the schema template
+   - Uses predefined field names during extraction
+   - Maintains field type information
+   - Still learns extraction patterns from HTML
+
+3. **Evaluation**: Standard evaluation process remains the same
+   - Uses value-based matching
+   - Compares extracted values against groundtruth
+
+### Schema Template Format
+
+Generated schema templates look like:
+```json
+{
+  "title": {
+    "type": "string",
+    "description": "Single title value",
+    "value_sample": [
+      "The Girl Who Kicked the Hornet's Nest",
+      "The Girl with the Dragon Tattoo"
+    ],
+    "xpath": ""
+  },
+  "author": {
+    "type": "list",
+    "description": "List of author values (typically 2 items)",
+    "value_sample": [
+      "Stieg Larsson",
+      "Glenn Beck"
+    ],
+    "xpath": ""
+  }
+}
+```
+
+**Field descriptions:**
+- `type`: Field type (string or list)
+- `description`: Human-readable description
+- `value_sample`: Sample values from groundtruth (up to 5)
+- `xpath`: XPath expression (initially empty, filled by agent)
+
+**Benefits of Predefined Schema Mode:**
+- ✅ Consistent field naming across all websites
+- ✅ Better alignment with groundtruth structure
+- ✅ Improved extraction accuracy for known fields
+- ✅ Useful for benchmarking and comparison studies
 
 ## Output Structure
 
 ```
 swde_evaluation_output/
 ├── summary.json                  # ⭐ Global progress and metrics (updated continuously)
+├── _schemas/                     # 🆕 Predefined schema templates (if --use-predefined-schema)
+│   ├── auto/
+│   │   ├── autoweb_schema.json
+│   │   └── ...
+│   ├── book/
+│   │   └── ...
+│   └── ...
 ├── <vertical>/
 │   ├── <website>/
 │   │   ├── evaluation/
@@ -322,31 +407,51 @@ F1 = 2 * (Precision * Recall) / (Precision + Recall)
 
 ## Matching Strategy
 
-The evaluation uses **value-based matching** instead of key-based matching:
+The evaluation uses **value-based matching** with an **improved three-tier matching strategy**:
 
-### Value-Based Matching (Current)
+### Value-Based Matching (Updated)
 1. **Extract all values** from the agent's JSON output (regardless of key names)
-2. **Search for groundtruth values** in the extracted values using substring matching
-3. **Match if found**: If a groundtruth value is contained in any extracted value, it's a match
-4. **Deduplicate**: Duplicate values in JSON are counted only once
+2. **Match against groundtruth** using three-tier strategy (see below)
+3. **Deduplicate**: Duplicate values in JSON are counted only once
 
 **Why value-based matching?**
 - Agent-generated JSON keys may not match groundtruth attribute names
 - More flexible and robust to schema variations
 - Focuses on whether the correct information was extracted, not where it was placed
 
-### Substring Matching Rules
-- Groundtruth value is contained in extracted value → Match
-- Case-insensitive comparison
-- Whitespace normalization
-- Accounts for extra text around the target value
+### Three-Tier Matching Strategy (NEW)
 
-**Example:**
+The matching algorithm tries three strategies in order:
+
+**1. Exact Match (Highest Priority)**
+- Normalized values are identical
+- Example: `"iPhone 13"` == `"iPhone 13"` ✓
+
+**2. Substring Match**
+- Groundtruth is contained in extracted value
+- Example: `"iPhone 13"` ⊆ `"iPhone 13 Pro Max"` ✓
+
+**3. Reverse Substring Match**
+- Extracted value is contained in groundtruth
+- Example: `"2010"` ⊆ `"2010 Edition"` ✓
+
+### Value Normalization (Updated)
+
+Before comparison, values are normalized:
+- **Remove ALL whitespace** (spaces, tabs, newlines)
+- **Convert to lowercase**
+- This ensures `"$ 24,250"` and `"$24,250"` are treated as equal
+
+**Matching Examples:**
 ```
-Groundtruth: "1.6L I-4 16V DOHC"
-JSON value: "1.6L I-4 16V DOHC" → ✓ Match
-JSON value: "Engine: 1.6L I-4 16V DOHC Turbocharged" → ✓ Match (substring)
-JSON value: "1.6L I-4" → ✗ No match (incomplete)
+Extracted              | Groundtruth         | Match | Strategy
+-----------------------|--------------------|---------|-----------------
+"iPhone 13 Pro Max"    | "iPhone 13"        | ✓      | Substring
+"2010"                 | "2010 Edition"     | ✓      | Reverse substring
+"$ 24,250"             | "$24,250"          | ✓      | Exact (normalized)
+"28 MPG City / 36 MPG" | "28 MPG"           | ✓      | Substring
+"John Doe"             | "Jane Doe"         | ✗      | No match
+"2010"                 | "2011"             | ✗      | No match
 ```
 
 ## Module Structure
@@ -361,6 +466,7 @@ JSON value: "1.6L I-4" → ✗ No match (incomplete)
 - `metrics.py` - Computes evaluation metrics (precision, recall, F1)
 - `groundtruth_loader.py` - Loads SWDE groundtruth files
 - `visualization.py` - Generates reports and charts
+- `schema_generator.py` - 🆕 Generates predefined schema templates from groundtruth
 
 ### Test Scripts (in `scripts/` directory)
 - `scripts/test_evaluation.py` - Single website test

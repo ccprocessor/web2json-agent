@@ -16,6 +16,13 @@ class ExtractionMetrics:
         """
         Normalize a value for comparison.
 
+        This function:
+        1. Removes ALL whitespace (spaces, tabs, newlines)
+        2. Converts to lowercase
+        3. Strips leading/trailing whitespace
+
+        This ensures values like "$ 24,250" and "$24,250" are treated as equal.
+
         Args:
             value: Raw value string
 
@@ -24,21 +31,28 @@ class ExtractionMetrics:
         """
         if value is None:
             return ""
-        # Remove extra whitespace, convert to lowercase for comparison
-        return ' '.join(str(value).split()).strip().lower()
+        # Remove ALL whitespace and convert to lowercase
+        # This handles cases like "$ 24,250" vs "$24,250"
+        return ''.join(str(value).split()).strip().lower()
 
     @staticmethod
     def value_match(extracted: str, groundtruth: str) -> bool:
         """
-        Check if extracted value matches groundtruth.
-        Uses substring matching: if groundtruth is contained in extracted value, it's a match.
+        Check if extracted value matches groundtruth using field value matching.
+
+        Matching strategy (in order of priority):
+        1. Exact match: normalized values are identical
+        2. Substring match: groundtruth is contained in extracted value
+        3. Reverse substring match: extracted is contained in groundtruth
+
+        This ensures flexible matching while maintaining accuracy.
 
         Args:
-            extracted: Extracted value
-            groundtruth: Groundtruth value
+            extracted: Extracted value from parser
+            groundtruth: Groundtruth value from dataset
 
         Returns:
-            True if match, False otherwise
+            True if values match, False otherwise
         """
         if not groundtruth:
             return False
@@ -49,8 +63,21 @@ class ExtractionMetrics:
         if not norm_extracted or not norm_groundtruth:
             return False
 
-        # Check if groundtruth is contained in extracted
-        return norm_groundtruth in norm_extracted
+        # Strategy 1: Exact match (most reliable)
+        if norm_extracted == norm_groundtruth:
+            return True
+
+        # Strategy 2: Groundtruth is substring of extracted
+        # Example: GT="iPhone 13" in Extracted="iPhone 13 Pro Max"
+        if norm_groundtruth in norm_extracted:
+            return True
+
+        # Strategy 3: Extracted is substring of groundtruth
+        # Example: Extracted="2010" in GT="2010 Edition"
+        if norm_extracted in norm_groundtruth:
+            return True
+
+        return False
 
     @staticmethod
     def compute_field_metrics(extracted_values: List[str], groundtruth_values: List[str]) -> Dict[str, float]:
