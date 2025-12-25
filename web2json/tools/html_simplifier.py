@@ -319,10 +319,6 @@ def simplify_html(
                 keep_attrs=None
             )
 
-        logger.success(f"HTML 精简完成，精简后长度: {len(result)} 字符 "
-                      f"(减少了 {len(html_str) - len(result)} 字符，"
-                      f"压缩率: {(1 - len(result)/len(html_str))*100:.1f}%)")
-
         return result
 
     except Exception as e:

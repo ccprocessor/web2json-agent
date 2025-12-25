@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from loguru import logger
 
@@ -827,43 +828,48 @@ class AgentExecutor:
             # 批量解析所有HTML文件
             logger.info(f"\n开始批量解析 {len(html_files)} 个HTML文件...")
 
-            for i, html_file_path in enumerate(html_files, 1):
-                html_path = Path(html_file_path)
-                logger.info(f"\n[{i}/{len(html_files)}] 解析 {html_path.name}...")
+            # 使用进度条显示解析进度
+            with tqdm(total=len(html_files), desc="解析HTML文件", unit="file") as pbar:
+                for html_file_path in html_files:
+                    html_path = Path(html_file_path)
 
-                try:
-                    # 读取HTML内容
-                    with open(html_path, 'r', encoding='utf-8') as f:
-                        html_content = f.read()
+                    try:
+                        # 读取HTML内容
+                        with open(html_path, 'r', encoding='utf-8') as f:
+                            html_content = f.read()
 
-                    # 使用解析器解析HTML
-                    parsed_data = parser.parse(html_content)
+                        # 使用解析器解析HTML
+                        parsed_data = parser.parse(html_content)
 
-                    # 确定保存路径（基于原文件名）
-                    json_filename = html_path.stem + '.json'
-                    json_path = self.result_dir / json_filename
+                        # 确定保存路径（基于原文件名）
+                        json_filename = html_path.stem + '.json'
+                        json_path = self.result_dir / json_filename
 
-                    # 保存JSON
-                    with open(json_path, 'w', encoding='utf-8') as f:
-                        json.dump(parsed_data, f, ensure_ascii=False, indent=2)
+                        # 保存JSON
+                        with open(json_path, 'w', encoding='utf-8') as f:
+                            json.dump(parsed_data, f, ensure_ascii=False, indent=2)
 
-                    logger.success(f"  ✓ 成功解析，JSON已保存: {json_path.name}")
-                    logger.info(f"     提取了 {len(parsed_data)} 个字段")
+                        results['parsed_files'].append({
+                            'html_file': str(html_path),
+                            'json_file': str(json_path),
+                            'fields_count': len(parsed_data),
+                        })
 
-                    results['parsed_files'].append({
-                        'html_file': str(html_path),
-                        'json_file': str(json_path),
-                        'fields_count': len(parsed_data),
-                    })
+                        # 更新进度条
+                        pbar.update(1)
 
-                except Exception as e:
-                    logger.error(f"  ✗ 解析失败: {str(e)}")
-                    results['failed_files'].append({
-                        'html_file': str(html_path),
-                        'error': str(e),
-                    })
-                    import traceback
-                    logger.debug(traceback.format_exc())
+                    except Exception as e:
+                        # 只在出错时输出日志
+                        logger.error(f"✗ 解析失败 ({html_path.name}): {str(e)}")
+                        results['failed_files'].append({
+                            'html_file': str(html_path),
+                            'error': str(e),
+                        })
+                        import traceback
+                        logger.debug(traceback.format_exc())
+
+                        # 更新进度条
+                        pbar.update(1)
 
             # 输出汇总
             logger.info(f"\n{'='*70}")
