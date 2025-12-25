@@ -182,6 +182,43 @@ web2json -d html_samples/ -o output/result
 
 **适用场景**：明确知道需要提取哪些字段，需要精确控制输出结构
 
+#### 方式1：交互式输入（推荐，快速上手）
+
+只需输入字段名，自动生成Schema模板并继续流程：
+
+```bash
+web2json -d html_samples/ -o output/result --interactive-schema
+```
+
+**交互流程**：
+```
+请输入需要提取的字段名，用空格分隔（例如: price fuel_economy engine model）
+请输入字段名: price fuel_economy engine model
+
+生成的Schema模板：
+{
+  "price": {
+    "type": "",
+    "description": "",
+    "value_sample": "",
+    "xpaths": [""]
+  },
+  "fuel_economy": {...},
+  "engine": {...},
+  "model": {...}
+}
+
+确认使用这个Schema模板吗？(y/n): y
+✓ Schema模板已确认
+```
+
+然后系统会自动：
+1. 分析HTML并为每个字段补充xpath
+2. 生成解析器代码
+3. 批量解析所有HTML文件
+
+#### 方式2：使用Schema模板文件
+
 **步骤1：创建Schema模板**（`schema_template.json`）
 ```json
 {
@@ -207,6 +244,7 @@ web2json -d html_samples/ -o output/result \
   --schema-template html_samples/schema_template.json
 ```
 
+**特点**：
 - ✅ 用户预先定义字段（key、type、description）
 - ✅ Agent只补充技术细节（xpath、value_sample）
 - ✅ 输出结构完全固定，适合生产环境
@@ -214,12 +252,13 @@ web2json -d html_samples/ -o output/result \
 
 **模式对比**：
 
-| 特性 | 自动模式 | 预定义模式 |
-|------|---------|-----------|
-| 字段来源 | Agent自动发现 | 用户预定义 |
-| 输出稳定性 | 可能变化 | 完全固定 |
-| 使用门槛 | 低（零配置） | 中（需定义模板） |
-| 适用场景 | 快速探索、原型 | 生产环境、精确控制 |
+| 特性 | 自动模式 | 预定义模式（交互式） | 预定义模式（文件） |
+|------|---------|-------------------|------------------|
+| 字段来源 | Agent自动发现 | 用户交互式输入 | 用户预先定义文件 |
+| 输出稳定性 | 可能变化 | 完全固定 | 完全固定 |
+| 使用门槛 | 低（零配置） | 低（命令行输入） | 中（需创建JSON文件） |
+| 适用场景 | 快速探索、原型 | 明确字段、快速验证 | 生产环境、精确控制 |
+| 配置方式 | 无需配置 | `--interactive-schema` | `--schema-template file.json` |
 
 📚 **详细文档**：参见 `docs/schema_modes.md` 和 `docs/schema_template_example.json`
 

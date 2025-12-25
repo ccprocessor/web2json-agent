@@ -75,16 +75,24 @@ class ParserAgent:
         # 如果是预定义模式，加载schema模板
         if self.schema_mode == "predefined":
             if schema_template:
-                # 从文件加载schema模板
-                template_path = Path(schema_template)
-                if not template_path.exists():
-                    raise FileNotFoundError(f"Schema模板文件不存在: {schema_template}")
+                # 支持两种类型：字典对象或文件路径字符串
+                if isinstance(schema_template, dict):
+                    # 直接使用字典对象（来自交互式输入）
+                    logger.info(f"使用交互式输入的Schema模板")
+                    self.schema_template = schema_template
+                    self.executor.schema_template = self.schema_template
+                    logger.info(f"Schema模板包含字段: {list(self.schema_template.keys())}")
+                else:
+                    # 从文件加载schema模板
+                    template_path = Path(schema_template)
+                    if not template_path.exists():
+                        raise FileNotFoundError(f"Schema模板文件不存在: {schema_template}")
 
-                logger.info(f"加载预定义Schema模板: {schema_template}")
-                with open(template_path, 'r', encoding='utf-8') as f:
-                    self.schema_template = json.load(f)
-                self.executor.schema_template = self.schema_template
-                logger.info(f"Schema模板加载成功，包含字段: {list(self.schema_template.keys())}")
+                    logger.info(f"加载预定义Schema模板: {schema_template}")
+                    with open(template_path, 'r', encoding='utf-8') as f:
+                        self.schema_template = json.load(f)
+                    self.executor.schema_template = self.schema_template
+                    logger.info(f"Schema模板加载成功，包含字段: {list(self.schema_template.keys())}")
 
             if not self.schema_template:
                 raise ValueError("预定义模式需要提供schema_template参数")

@@ -4,8 +4,75 @@ web2json-agent CLI 入口点
 """
 import sys
 import argparse
+import json
 from pathlib import Path
 from web2json.config.validator import ConfigValidator, check_config_or_guide
+
+
+def generate_schema_template_from_fields(field_names: list) -> dict:
+    """
+    根据字段名列表生成schema模板
+
+    Args:
+        field_names: 字段名列表，例如 ['price', 'fuel_economy', 'engine']
+
+    Returns:
+        schema模板字典
+    """
+    schema_template = {}
+    for field_name in field_names:
+        schema_template[field_name.strip()] = {
+            "type": "",
+            "description": "",
+            "value_sample": "",
+            "xpaths": [""]
+        }
+    return schema_template
+
+
+def interactive_schema_input() -> dict:
+    """
+    交互式输入字段名，生成schema模板
+
+    Returns:
+        schema模板字典
+    """
+    print("\n" + "="*70)
+    print("交互式Schema输入模式")
+    print("="*70)
+    print("\n请输入需要提取的字段名，用空格分隔（例如: price fuel_economy engine model）")
+    print("提示：字段名应该是英文，使用下划线分隔多个单词\n")
+
+    while True:
+        user_input = input("请输入字段名: ").strip()
+
+        if not user_input:
+            print("❌ 输入不能为空，请重新输入")
+            continue
+
+        # 按空格分割字段名
+        field_names = [name.strip() for name in user_input.split() if name.strip()]
+
+        if not field_names:
+            print("❌ 未识别到有效的字段名，请重新输入")
+            continue
+
+        # 生成schema模板
+        schema_template = generate_schema_template_from_fields(field_names)
+
+        # 显示生成的模板
+        print("\n生成的Schema模板：")
+        print("-"*70)
+        print(json.dumps(schema_template, ensure_ascii=False, indent=2))
+        print("-"*70)
+
+        # 确认
+        confirm = input("\n确认使用这个Schema模板吗？(y/n): ").strip().lower()
+        if confirm in ['y', 'yes', '']:
+            print("✓ Schema模板已确认\n")
+            return schema_template
+        else:
+            print("\n重新输入字段名...\n")
 
 
 def cmd_init(args):
@@ -84,6 +151,35 @@ def cmd_generate(args):
     logger.info("web2json-agent - 智能网页解析代码生成器")
     logger.info("="*70)
 
+    # 处理交互式输入模式
+    schema_mode = getattr(args, 'schema_mode', None)
+    schema_template = getattr(args, 'schema_template', None)
+
+    if getattr(args, 'interactive_schema', False):
+        # 交互式输入模式
+        logger.info("启用交互式Schema输入模式")
+        schema_template_dict = interactive_schema_input()
+
+        # 自动设置为 predefined 模式
+        schema_mode = 'predefined'
+        schema_template = schema_template_dict
+        logger.info(f"将使用预定义模式，字段: {list(schema_template_dict.keys())}")
+    elif schema_template:
+        # 如果提供了schema_template文件路径，读取文件
+        try:
+            template_path = Path(schema_template)
+            if not template_path.exists():
+                logger.error(f"Schema模板文件不存在: {schema_template}")
+                sys.exit(1)
+
+            with open(template_path, 'r', encoding='utf-8') as f:
+                schema_template = json.load(f)
+            logger.info(f"已加载Schema模板文件: {template_path}")
+            logger.info(f"模板字段: {list(schema_template.keys())}")
+        except Exception as e:
+            logger.error(f"读取Schema模板文件失败: {e}")
+            sys.exit(1)
+
     # 获取HTML文件列表
     logger.info(f"从目录读取HTML文件: {args.directory}")
     html_files = read_html_files_from_directory(args.directory)
@@ -108,8 +204,8 @@ def cmd_generate(args):
         html_files=html_files,
         domain=args.domain,
         iteration_rounds=getattr(args, 'iteration_rounds', None),
-        schema_mode=getattr(args, 'schema_mode', None),
-        schema_template=getattr(args, 'schema_template', None)
+        schema_mode=schema_mode,
+        schema_template=schema_template
     )
 
     # 输出结果
@@ -145,6 +241,12 @@ def main():
 
   # 从目录读取HTML文件并生成解析器
   web2json -d input_html/ -o output/blog
+
+  # 交互式输入字段名生成解析器
+  web2json -d input_html/ -o output/blog --interactive-schema
+
+  # 使用预定义schema模板文件
+  web2json -d input_html/ -o output/blog --schema-mode predefined --schema-template schema.json
 
 更多信息: https://github.com/ccprocessor/web2json-agent
         """
@@ -200,6 +302,11 @@ def main():
     parser.add_argument(
         '--schema-template',
         help='预定义schema模板文件路径（JSON格式，当schema-mode=predefined时必需）'
+    )
+    parser.add_argument(
+        '--interactive-schema',
+        action='store_true',
+        help='交互式输入模式：提示用户输入需要提取的字段名，自动生成schema模板'
     )
     parser.add_argument(
         '--cluster',
