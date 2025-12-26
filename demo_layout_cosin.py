@@ -16,7 +16,7 @@
 
 from pathlib import Path
 
-from tools.cluster import cluster_html_layouts, cluster_html_layouts_optimized
+from web2json.tools.cluster import cluster_html_layouts, cluster_html_layouts_optimized
 
 
 # 默认对比的两个 HTML 文件路径，如需修改，直接改这里即可
@@ -47,7 +47,7 @@ def main() -> None:
 
     html_list = [read_html(p) for p in html_paths]
 
-    labels, sim_mat, clusters = cluster_html_layouts_optimized(html_list)
+    labels, sim_mat, clusters = cluster_html_layouts_optimized(html_list, use_knn_graph=True)
     print(sim_mat)
     print("\n聚类结果（不含噪声 -1）:")
     unique_labels = sorted(set(labels))

@@ -141,7 +141,7 @@ def cluster_html_layouts(
 
 def cluster_html_layouts_optimized(
     html_list: List[str],
-    threshold: float = 0.95,
+    threshold: float = 0.9,
     k: float = 0.7,
     layer_n: int | None = None,
     metric: str = "cosine",
