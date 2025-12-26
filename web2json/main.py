@@ -212,11 +212,6 @@ def generate_parsers_by_layout_clusters(
 
             if result['success']:
                 logger.success(f"\n✓ {cluster_name}的解析器生成成功!")
-                logger.info(f"  解析器路径: {result['parser_path']}")
-                logger.info(f"  配置路径: {result['config_path']}")
-                logger.info(f"  结果目录: {result.get('results_dir', 'N/A')}")
-                logger.info("  使用方法:")
-                logger.info(f"    python {result['parser_path']} <url_or_html_file>")
                 successful_clusters.append((lbl, cluster_name, result))
             else:
                 any_failure = True
@@ -303,10 +298,6 @@ def main():
         )
         return
 
-    logger.info("="*70)
-    logger.info("HtmlParserAgent - 智能网页解析代码生成器")
-    logger.info("="*70)
-
     # 创建Agent
     agent = ParserAgent(output_dir=args.output)
 
@@ -318,14 +309,7 @@ def main():
     )
 
     # 输出结果
-    if result['success']:
-        logger.success("\n✓ 解析器生成成功!")
-        logger.info(f"  解析器路径: {result['parser_path']}")
-        logger.info(f"  配置路径: {result['config_path']}")
-
-        logger.info("\n使用方法:")
-        logger.info(f"  python {result['parser_path']} <url_or_html_file>")
-    else:
+    if not result['success']:
         logger.error("\n✗ 解析器生成失败")
         if 'error' in result:
             logger.error(f"  错误: {result['error']}")

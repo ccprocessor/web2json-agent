@@ -51,12 +51,21 @@ class AgentPlanner:
             'sample_urls': sample_files,   # 为了兼容性，保留这个字段
             'num_samples': num_samples,
             'iteration_rounds': iteration_rounds,
+            'phases': [
+                'schema_phase',     # 阶段1: Schema迭代 - HTML处理 + Schema提取/补充 + 合并
+                'code_phase',       # 阶段2: 代码迭代 - 代码生成和优化
+                'parse_phase',      # 阶段3: 批量解析 - 使用最终解析器解析所有HTML
+            ],
             'steps': [
-                'read_html_file',       # 1. 读取HTML文件
-                'capture_screenshot',   # 2. 渲染并截图
-                'extract_schema',       # 3. 提取JSON Schema
-                'generate_code',        # 4. 生成解析代码
-                'parse_all_html',       # 5. 使用生成的解析器解析所有HTML
+                # Schema 阶段步骤
+                'simplify_html',        # 1. 读取并精简HTML文件
+                'extract_schema',       # 2. 提取/补充Schema
+                'merge_schema',         # 3. 合并多个Schema
+                # Code 阶段步骤
+                'generate_parser',      # 4. 生成解析器代码
+                'optimize_parser',      # 5. 优化解析器代码
+                # Parse 阶段步骤
+                'batch_parse',          # 6. 批量解析所有HTML
             ],
         }
 

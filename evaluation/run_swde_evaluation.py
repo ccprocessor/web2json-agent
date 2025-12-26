@@ -611,6 +611,12 @@ class SWDEEvaluationRunner:
         # Generate summary report
         self.generate_vertical_summary(vertical, all_results)
 
+        # Generate integrated error report for this vertical
+        if all_results:
+            integrated_report_path = self.output_root / vertical / "_summary" / "integrated_error_report.html"
+            print(f"\nGenerating integrated error report for {vertical}...")
+            EvaluationReporter.generate_integrated_report(all_results, integrated_report_path)
+
         return all_results
 
     def generate_vertical_summary(self, vertical: str, results_list: List[Dict]) -> None:
@@ -668,6 +674,51 @@ class SWDEEvaluationRunner:
             print(f"  F1 Score: {summary['average_metrics']['f1']:.2%}")
         else:
             print(f"\nNo successful evaluations for {vertical} - cannot compute average metrics")
+
+    def load_existing_results(self, vertical: str = None, website: str = None) -> List[Dict]:
+        """
+        Load existing evaluation results from disk.
+
+        Args:
+            vertical: Optional vertical name to filter (if None, load all)
+            website: Optional website name to filter (requires vertical)
+
+        Returns:
+            List of evaluation results
+        """
+        results_list = []
+
+        if website and vertical:
+            # Load single website result
+            eval_file = self.output_root / vertical / website / "evaluation" / "results.json"
+            if eval_file.exists():
+                with open(eval_file, 'r', encoding='utf-8') as f:
+                    results = json.load(f)
+                    results_list.append(results)
+        elif vertical:
+            # Load all websites in vertical
+            vertical_dir = self.output_root / vertical
+            if vertical_dir.exists():
+                for website_dir in vertical_dir.iterdir():
+                    if website_dir.is_dir() and not website_dir.name.startswith('_'):
+                        eval_file = website_dir / "evaluation" / "results.json"
+                        if eval_file.exists():
+                            with open(eval_file, 'r', encoding='utf-8') as f:
+                                results = json.load(f)
+                                results_list.append(results)
+        else:
+            # Load all results
+            for vert_dir in self.output_root.iterdir():
+                if vert_dir.is_dir() and vert_dir.name in VERTICALS:
+                    for website_dir in vert_dir.iterdir():
+                        if website_dir.is_dir() and not website_dir.name.startswith('_'):
+                            eval_file = website_dir / "evaluation" / "results.json"
+                            if eval_file.exists():
+                                with open(eval_file, 'r', encoding='utf-8') as f:
+                                    results = json.load(f)
+                                    results_list.append(results)
+
+        return results_list
 
 
 def main():
@@ -739,7 +790,12 @@ def main():
     # Run evaluation
     if args.website:
         # Single website
-        runner.run_single_website(args.vertical, args.website)
+        results = runner.run_single_website(args.vertical, args.website)
+        # Generate single-website integrated report (just shows that one website)
+        integrated_report_path = runner.output_root / args.vertical / args.website / "evaluation" / "report.html"
+        print(f"\n{'='*80}")
+        print(f"Report saved to: {integrated_report_path}")
+        print(f"{'='*80}")
     elif args.vertical:
         # All websites in vertical
         runner.run_vertical(args.vertical)
@@ -756,16 +812,26 @@ def main():
         print(f"# Predefined schema: {'ON' if args.use_predefined_schema else 'OFF'}")
         print(f"{'#'*80}\n")
 
+        all_results = []
         for vertical in VERTICALS.keys():
             print(f"\n{'#'*80}")
             print(f"# Processing vertical: {vertical}")
             print(f"{'#'*80}")
             try:
-                runner.run_vertical(vertical)
+                vertical_results = runner.run_vertical(vertical)
+                all_results.extend(vertical_results)
             except Exception as e:
                 print(f"Error processing vertical {vertical}: {e}")
                 import traceback
                 traceback.print_exc()
+
+        # Generate integrated error report for all results
+        if all_results:
+            integrated_report_path = runner.output_root / "integrated_error_report.html"
+            print(f"\n{'='*80}")
+            print(f"Generating complete integrated error report for all verticals...")
+            print(f"{'='*80}")
+            EvaluationReporter.generate_integrated_report(all_results, integrated_report_path)
 
         # Print final summary
         print(f"\n{'#'*80}")

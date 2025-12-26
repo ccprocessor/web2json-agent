@@ -123,7 +123,6 @@ def extract_schema_from_html(html_content: str) -> Dict:
 
         result = _parse_llm_response(content)
 
-        logger.success(f"成功从HTML提取 {len(result)} 个字段")
         return result
 
     except Exception as e:
@@ -300,7 +299,6 @@ def merge_multiple_schemas(schemas: List[Dict]) -> Dict:
 
         result = _parse_llm_response(content)
 
-        logger.success(f"成功合并多个Schema，最终包含 {len(result)} 个字段")
         return result
 
     except Exception as e:

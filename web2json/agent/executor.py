@@ -1,32 +1,23 @@
 """
 Agent 执行器
-负责执行具体的任务步骤
+负责阶段编排和流程控制（重构简化版）
 """
-import importlib.util
-import json
-import sys
 from pathlib import Path
 from typing import Dict, List
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
 
 from loguru import logger
 
-from web2json.config.settings import settings
-from web2json.tools import (
-    get_html_from_file,  # 从本地文件读取HTML工具
-    # capture_html_file_screenshot,  # 渲染本地HTML并截图工具（保留功能但不在主流程使用）
-    # close_browser,  # 关闭浏览器实例
-    generate_parser_code,  # 生成解析代码工具
-    extract_schema_from_html,  # 从HTML提取Schema
-    merge_multiple_schemas,  # 合并多个HTML的Schema
-    enrich_schema_with_xpath,  # 为预定义Schema补充xpath
+from .processors import (
+    HtmlProcessor,
+    SchemaProcessor,
+    CodeProcessor,
+    ParserProcessor,
 )
-from web2json.tools.html_simplifier import simplify_html  # HTML精简工具
+from .phases import SchemaPhase, CodePhase
 
 
 class AgentExecutor:
-    """Agent执行器，负责执行具体任务"""
+    """Agent 执行器 - 负责阶段编排"""
 
     def __init__(self, output_dir: str = "output", schema_mode: str = "auto", schema_template: Dict = None):
         """
@@ -43,28 +34,76 @@ class AgentExecutor:
         self.schema_template = schema_template
 
         # 创建子目录
-        self.screenshots_dir = self.output_dir / "screenshots"
-        self.parsers_dir = self.output_dir / "parsers"
-        self.html_original_dir = self.output_dir / "html_original"  # 原始HTML
-        self.html_simplified_dir = self.output_dir / "html_simplified"  # 精简HTML
-        self.result_dir = self.output_dir / "result"
-        self.schemas_dir = self.output_dir / "schemas"
+        self._setup_directories()
 
-        self.screenshots_dir.mkdir(exist_ok=True)
-        self.parsers_dir.mkdir(exist_ok=True)
-        self.html_original_dir.mkdir(exist_ok=True)
-        self.html_simplified_dir.mkdir(exist_ok=True)
-        self.result_dir.mkdir(exist_ok=True)
-        self.schemas_dir.mkdir(exist_ok=True)
+        # 初始化处理器
+        self._init_processors()
 
+        # 初始化阶段管理器
+        self._init_phases()
+
+        # 验证预定义模式
         if self.schema_mode == "predefined":
             if not self.schema_template:
                 raise ValueError("预定义模式需要提供schema_template")
             logger.info(f"  - 预定义Schema字段: {list(self.schema_template.keys())}")
-    
+
+    def _setup_directories(self):
+        """创建输出子目录"""
+        self.screenshots_dir = self.output_dir / "screenshots"
+        self.parsers_dir = self.output_dir / "parsers"
+        self.html_original_dir = self.output_dir / "html_original"
+        self.html_simplified_dir = self.output_dir / "html_simplified"
+        self.result_dir = self.output_dir / "result"
+        self.schemas_dir = self.output_dir / "schemas"
+
+        for dir_path in [
+            self.screenshots_dir,
+            self.parsers_dir,
+            self.html_original_dir,
+            self.html_simplified_dir,
+            self.result_dir,
+            self.schemas_dir,
+        ]:
+            dir_path.mkdir(exist_ok=True)
+
+    def _init_processors(self):
+        """初始化所有处理器"""
+        self.html_processor = HtmlProcessor(
+            html_original_dir=self.html_original_dir,
+            html_simplified_dir=self.html_simplified_dir,
+        )
+
+        self.schema_processor = SchemaProcessor(
+            schemas_dir=self.schemas_dir,
+            schema_mode=self.schema_mode,
+            schema_template=self.schema_template,
+        )
+
+        self.code_processor = CodeProcessor(
+            parsers_dir=self.parsers_dir,
+        )
+
+        self.parser_processor = ParserProcessor(
+            result_dir=self.result_dir,
+        )
+
+    def _init_phases(self):
+        """初始化阶段管理器"""
+        self.schema_phase = SchemaPhase(
+            html_processor=self.html_processor,
+            schema_processor=self.schema_processor,
+            schema_mode=self.schema_mode,
+        )
+
+        self.code_phase = CodePhase(
+            code_processor=self.code_processor,
+            output_dir=self.output_dir,
+        )
+
     def execute_plan(self, plan: Dict) -> Dict:
         """
-        执行计划 - 两阶段迭代执行
+        执行计划 - 两阶段迭代
 
         阶段1: Schema迭代（前N个URL）- 获取HTML -> 提取/优化JSON Schema
         阶段2: 代码迭代（后M个URL）- 基于最终Schema生成代码 -> 验证 -> 优化代码
@@ -79,37 +118,16 @@ class AgentExecutor:
 
         results = {
             'plan': plan,
-            'schema_phase': {
-                'rounds': [],
-                'final_schema': None,
-            },
-            'code_phase': {
-                'rounds': [],
-                'parsers': [],
-            },
+            'schema_phase': {},
+            'code_phase': {},
             'final_parser': None,
             'success': False,
         }
 
-        # 使用所有输入的URL进行迭代
         sample_urls = plan['sample_urls']
-        num_urls = len(sample_urls)
 
-        # 阶段1: Schema迭代（使用所有URL）
-        logger.info(f"\n{'='*70}")
-        if self.schema_mode == "auto":
-            logger.info(f"阶段1: Schema迭代 - 自动模式（{num_urls}个URL，{num_urls}轮迭代）")
-        else:
-            logger.info(f"阶段1: Schema补充 - 预定义模式（{num_urls}个URL，{num_urls}轮迭代）")
-        logger.info(f"{'='*70}")
-
-        if self.schema_mode == "auto":
-            # 自动模式：提取和合并schema
-            schema_result = self._execute_schema_iteration_phase(sample_urls)
-        else:
-            # 预定义模式：使用模板并补充xpath
-            schema_result = self._execute_predefined_schema_phase(sample_urls)
-
+        # ============ 阶段 1: Schema 迭代 ============
+        schema_result = self.schema_phase.execute(sample_urls)
         results['schema_phase'] = schema_result
 
         if not schema_result['success']:
@@ -119,677 +137,20 @@ class AgentExecutor:
         final_schema = schema_result['final_schema']
         logger.success(f"Schema阶段完成，最终Schema包含 {len(final_schema)} 个字段")
 
-        # 阶段2: 代码迭代（复用Schema阶段的HTML）
-        logger.info(f"\n{'='*70}")
-        logger.info(f"阶段2: 代码迭代（使用Schema阶段的{num_urls}个HTML，{num_urls}轮迭代）")
-        logger.info(f"{'='*70}")
-
-        code_result = self._execute_code_iteration_phase(
-            sample_urls,  # 仅用于日志，实际使用schema_result['rounds']中的数据
-            final_schema,
-            schema_result['rounds']  # 传递schema阶段的数据（包含HTML）
+        # ============ 阶段 2: 代码迭代 ============
+        code_result = self.code_phase.execute(
+            final_schema=final_schema,
+            schema_phase_rounds=schema_result['rounds']
         )
         results['code_phase'] = code_result
 
         if code_result['success']:
             results['final_parser'] = code_result['final_parser']
             results['success'] = True
-
-            # 使用最终解析器解析所有HTML并生成JSON
-            logger.info(f"\n{'='*70}")
-            logger.info("使用最终解析器解析所有HTML")
-            logger.info(f"{'='*70}")
-            # 只使用Schema阶段的数据，因为代码阶段复用了Schema阶段的HTML
-            self._parse_all_html_with_final_parser(results, schema_result['rounds'])
         else:
             logger.error("代码迭代阶段失败")
 
         return results
-
-    def _simplify_html_file(self, html_file_path: str, idx: int) -> Dict:
-        """
-        读取并精简单个HTML文件
-
-        Args:
-            html_file_path: HTML文件路径
-            idx: 轮次编号
-
-        Returns:
-            精简结果，包含HTML路径
-        """
-        result = {
-            'success': False,
-            'idx': idx,
-            'html_file': html_file_path,
-        }
-
-        try:
-            # 1. 读取HTML文件内容
-            html_content = get_html_from_file.invoke({"file_path": html_file_path})
-
-            # 保存原始HTML
-            html_original_path = self.html_original_dir / f"schema_round_{idx}.html"
-            with open(html_original_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-
-            # 2. 精简HTML
-            try:
-                mode = settings.html_simplify_mode
-                keep_attrs = settings.html_keep_attrs if mode != 'conservative' else None
-
-                simplified_html = simplify_html(
-                    html_content,
-                    mode=mode,
-                    keep_attrs=keep_attrs
-                )
-                html_simplified_path = self.html_simplified_dir / f"schema_round_{idx}.html"
-                with open(html_simplified_path, 'w', encoding='utf-8') as f:
-                    f.write(simplified_html)
-
-                compression_rate = (1 - len(simplified_html) / len(html_content)) * 100
-                logger.success(f"  [{idx}] ✓ 精简完成（{len(html_content)} → {len(simplified_html)} 字符，压缩 {compression_rate:.1f}%）")
-
-                html_path = html_simplified_path
-                html_for_processing = simplified_html
-            except Exception as e:
-                logger.warning(f"  [{idx}] ⚠ 精简失败: {e}，使用原始HTML")
-                html_path = html_original_path
-                html_for_processing = html_content
-
-            result.update({
-                'success': True,
-                'html_content': html_for_processing,
-                'html_original_path': str(html_original_path),
-                'html_path': str(html_path),
-            })
-
-        except Exception as e:
-            logger.error(f"  [{idx}] ✗ 失败: {str(e)}")
-            result['error'] = str(e)
-
-        return result
-
-    # 截图功能保留但不在主流程中使用
-    # def _take_screenshot(self, html_data: Dict) -> Dict:
-    #     """
-    #     为已准备的HTML拍摄截图（保留功能但暂时不使用）
-    #
-    #     Args:
-    #         html_data: 包含html_original_path的数据
-    #
-    #     Returns:
-    #         截图结果
-    #     """
-    #     pass
-
-    def _extract_html_schema(self, html_data: Dict) -> Dict:
-        """
-        提取单个HTML的Schema（仅基于HTML文本）
-
-        Args:
-            html_data: 准备好的HTML数据
-
-        Returns:
-            包含html_schema的结果
-        """
-        idx = html_data['idx']
-        result = {
-            'success': False,
-            'idx': idx,
-        }
-
-        try:
-            html_content = html_data['html_content']
-
-            logger.info(f"[提取阶段 {idx}] 提取HTML Schema...")
-            html_schema = extract_schema_from_html.invoke({"html_content": html_content})
-
-            logger.success(f"[提取阶段 {idx}] ✓ Schema提取完成（{len(html_schema)} 字段）")
-
-            # 保存schema
-            html_schema_path = self.schemas_dir / f"html_schema_round_{idx}.json"
-            with open(html_schema_path, 'w', encoding='utf-8') as f:
-                json.dump(html_schema, f, ensure_ascii=False, indent=2)
-
-            result.update({
-                'success': True,
-                'html_schema': html_schema,
-                'html_schema_path': str(html_schema_path),
-            })
-
-        except Exception as e:
-            logger.error(f"[提取阶段 {idx}] ✗ 失败: {str(e)}")
-            result['error'] = str(e)
-
-        return result
-
-    def _execute_schema_iteration_phase(self, html_files: List[str]) -> Dict:
-        """
-        执行Schema迭代阶段（简化版本，仅使用HTML）
-
-        3阶段流程：
-        1. 精简阶段：批量精简所有HTML
-        2. 提取阶段：并行提取所有HTML的Schema
-        3. 最终合并：生成最终Schema
-
-        Args:
-            html_files: HTML文件路径列表
-
-        Returns:
-            Schema迭代结果
-        """
-        result = {
-            'rounds': [],
-            'final_schema': None,
-            'success': False,
-        }
-
-        # ============ 阶段1：批量精简所有HTML ============
-        logger.info(f"\n{'═'*70}")
-        logger.info(f"阶段1/3: 批量精简HTML文件")
-        logger.info(f"{'═'*70}")
-
-        simplified_data_list = []
-        for idx, html_file_path in enumerate(html_files, 1):
-            logger.info(f"  正在精简 [{idx}/{len(html_files)}]: {Path(html_file_path).name}")
-            simplified_data = self._simplify_html_file(html_file_path, idx)
-            if simplified_data['success']:
-                simplified_data_list.append(simplified_data)
-            else:
-                logger.error(f"HTML精简失败: {html_file_path}")
-                if idx == 1:
-                    return result
-
-        if not simplified_data_list:
-            logger.error("没有成功精简的HTML文件")
-            return result
-
-        logger.success(f"✓ 已精简 {len(simplified_data_list)} 个HTML文件")
-
-        # ============ 阶段2：并行提取所有Schema ============
-        logger.info(f"\n{'═'*70}")
-        logger.info(f"阶段2/3: 并行提取HTML Schema")
-        logger.info(f"  - 并发处理 {len(simplified_data_list)} 个HTML")
-        logger.info(f"  - 最大并发数: {min(settings.max_concurrent_extractions, len(simplified_data_list))}")
-        logger.info(f"{'═'*70}")
-
-        extract_results = []
-        # 使用配置的并发数，避免API限流
-        max_workers = min(settings.max_concurrent_extractions, len(simplified_data_list))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_data = {
-                executor.submit(self._extract_html_schema, data): data
-                for data in simplified_data_list
-            }
-
-            for future in as_completed(future_to_data):
-                extract_result = future.result()
-                if extract_result['success']:
-                    extract_results.append(extract_result)
-
-        # 按idx排序
-        extract_results.sort(key=lambda x: x['idx'])
-        logger.success(f"✓ 已提取 {len(extract_results)} 个HTML的Schema")
-
-        if not extract_results:
-            logger.error("没有成功提取的Schema")
-            return result
-
-        # ============ 构建轮次结果 ============
-        all_html_schemas = []
-        for i, simplified in enumerate(simplified_data_list):
-            idx = simplified['idx']
-            html_file_path = simplified['html_file']
-
-            # 查找对应的提取结果
-            extract_result = next((r for r in extract_results if r['idx'] == idx), None)
-
-            if extract_result:
-                html_schema = extract_result['html_schema']
-                all_html_schemas.append(html_schema)
-
-                round_result = {
-                    'round': idx,
-                    'html_file': html_file_path,
-                    'url': html_file_path,
-                    'html_original_path': simplified['html_original_path'],
-                    'html_path': simplified['html_path'],
-                    'html_schema': html_schema.copy(),
-                    'html_schema_path': extract_result['html_schema_path'],
-                    'schema': html_schema.copy(),
-                    'schema_path': extract_result['html_schema_path'],
-                    'groundtruth_schema': html_schema.copy(),
-                    'success': True,
-                }
-                result['rounds'].append(round_result)
-
-        # ============ 阶段3：合并多个Schema，生成最终Schema ============
-        if all_html_schemas:
-            logger.info(f"\n{'═'*70}")
-            logger.info(f"阶段3/3: 生成最终Schema")
-            logger.info(f"  - 合并 {len(all_html_schemas)} 个Schema")
-            logger.info(f"{'═'*70}")
-
-            try:
-                final_schema = merge_multiple_schemas.invoke({
-                    "schemas": all_html_schemas
-                })
-                logger.success(f"✓ 最终Schema已生成，包含 {len(final_schema)} 个字段")
-
-                # 保存最终Schema
-                final_schema_path = self.schemas_dir / "final_schema.json"
-                with open(final_schema_path, 'w', encoding='utf-8') as f:
-                    json.dump(final_schema, f, ensure_ascii=False, indent=2)
-                logger.success(f"✓ 最终Schema已保存: {final_schema_path}")
-
-                result['final_schema'] = final_schema
-                result['final_schema_path'] = str(final_schema_path)
-                result['success'] = True
-
-            except Exception as e:
-                logger.error(f"合并多个Schema失败: {str(e)}")
-                import traceback
-                logger.debug(traceback.format_exc())
-
-        return result
-
-    def _execute_predefined_schema_phase(self, html_files: List[str]) -> Dict:
-        """
-        执行预定义Schema补充阶段
-
-        使用用户提供的Schema模板，为每个HTML补充xpath和value_sample
-
-        Args:
-            html_files: HTML文件路径列表
-
-        Returns:
-            Schema补充结果
-        """
-        result = {
-            'rounds': [],
-            'final_schema': None,
-            'success': False,
-        }
-
-        logger.info(f"\n{'═'*70}")
-        logger.info(f"预定义Schema模式")
-        logger.info(f"  - Schema模板字段: {list(self.schema_template.keys())}")
-        logger.info(f"{'═'*70}")
-
-        # ============ 阶段1：批量精简所有HTML ============
-        logger.info(f"\n{'═'*70}")
-        logger.info(f"阶段1/3: 批量精简HTML文件")
-        logger.info(f"{'═'*70}")
-
-        simplified_data_list = []
-        for idx, html_file_path in enumerate(html_files, 1):
-            logger.info(f"  正在精简 [{idx}/{len(html_files)}]: {Path(html_file_path).name}")
-            simplified_data = self._simplify_html_file(html_file_path, idx)
-            if simplified_data['success']:
-                simplified_data_list.append(simplified_data)
-            else:
-                logger.error(f"HTML精简失败: {html_file_path}")
-                if idx == 1:
-                    return result
-
-        if not simplified_data_list:
-            logger.error("没有成功精简的HTML文件")
-            return result
-
-        logger.success(f"✓ 已精简 {len(simplified_data_list)} 个HTML文件")
-
-        # ============ 阶段2：并行为每个HTML补充xpath ============
-        logger.info(f"\n{'═'*70}")
-        logger.info(f"阶段2/3: 并行为预定义Schema补充xpath")
-        logger.info(f"  - 并发处理 {len(simplified_data_list)} 个HTML")
-        logger.info(f"  - 最大并发数: {min(settings.max_concurrent_extractions, len(simplified_data_list))}")
-        logger.info(f"{'═'*70}")
-
-        enriched_results = []
-        # 使用配置的并发数，避免API限流
-        max_workers = min(settings.max_concurrent_extractions, len(simplified_data_list))
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_data = {
-                executor.submit(self._enrich_single_schema, data): data
-                for data in simplified_data_list
-            }
-
-            for future in as_completed(future_to_data):
-                enrich_result = future.result()
-                if enrich_result['success']:
-                    enriched_results.append(enrich_result)
-
-        # 按idx排序
-        enriched_results.sort(key=lambda x: x['idx'])
-        logger.success(f"✓ 已为 {len(enriched_results)} 个HTML补充xpath")
-
-        if not enriched_results:
-            logger.error("没有成功补充xpath的Schema")
-            return result
-
-        # ============ 构建轮次结果 ============
-        all_enriched_schemas = []
-        for i, simplified in enumerate(simplified_data_list):
-            idx = simplified['idx']
-            html_file_path = simplified['html_file']
-
-            # 查找对应的enriched结果
-            enrich_result = next((r for r in enriched_results if r['idx'] == idx), None)
-
-            if enrich_result:
-                enriched_schema = enrich_result['enriched_schema']
-                all_enriched_schemas.append(enriched_schema)
-
-                round_result = {
-                    'round': idx,
-                    'html_file': html_file_path,
-                    'url': html_file_path,
-                    'html_original_path': simplified['html_original_path'],
-                    'html_path': simplified['html_path'],
-                    'html_schema': enriched_schema.copy(),
-                    'html_schema_path': enrich_result['schema_path'],
-                    'schema': enriched_schema.copy(),
-                    'schema_path': enrich_result['schema_path'],
-                    'groundtruth_schema': enriched_schema.copy(),
-                    'success': True,
-                }
-                result['rounds'].append(round_result)
-
-        # ============ 阶段3：合并多个enriched schema，生成最终Schema ============
-        if all_enriched_schemas:
-            logger.info(f"\n{'═'*70}")
-            logger.info(f"阶段3/3: 生成最终Schema")
-            logger.info(f"  - 合并 {len(all_enriched_schemas)} 个补充后的Schema")
-            logger.info(f"{'═'*70}")
-
-            try:
-                # 使用merge策略合并多个enriched schema
-                final_schema = merge_multiple_schemas.invoke({
-                    "schemas": all_enriched_schemas
-                })
-                logger.success(f"✓ 最终Schema已生成，包含 {len(final_schema)} 个字段")
-
-                # 保存最终Schema
-                final_schema_path = self.schemas_dir / "final_schema.json"
-                with open(final_schema_path, 'w', encoding='utf-8') as f:
-                    json.dump(final_schema, f, ensure_ascii=False, indent=2)
-                logger.success(f"✓ 最终Schema已保存: {final_schema_path}")
-
-                result['final_schema'] = final_schema
-                result['final_schema_path'] = str(final_schema_path)
-                result['success'] = True
-
-            except Exception as e:
-                logger.error(f"合并多个Schema失败: {str(e)}")
-                import traceback
-                logger.debug(traceback.format_exc())
-
-        return result
-
-    def _enrich_single_schema(self, html_data: Dict) -> Dict:
-        """
-        为单个HTML的预定义Schema补充xpath
-
-        Args:
-            html_data: 准备好的HTML数据
-
-        Returns:
-            包含enriched_schema的结果
-        """
-        idx = html_data['idx']
-        result = {
-            'success': False,
-            'idx': idx,
-        }
-
-        try:
-            html_content = html_data['html_content']
-
-            logger.info(f"[补充阶段 {idx}] 为预定义Schema补充xpath...")
-            enriched_schema = enrich_schema_with_xpath.invoke({
-                "schema_template": self.schema_template,
-                "html_content": html_content
-            })
-
-            logger.success(f"[补充阶段 {idx}] ✓ Schema补充完成（{len(enriched_schema)} 字段）")
-
-            # 保存schema
-            schema_path = self.schemas_dir / f"enriched_schema_round_{idx}.json"
-            with open(schema_path, 'w', encoding='utf-8') as f:
-                json.dump(enriched_schema, f, ensure_ascii=False, indent=2)
-
-            result.update({
-                'success': True,
-                'enriched_schema': enriched_schema,
-                'schema_path': str(schema_path),
-            })
-
-        except Exception as e:
-            logger.error(f"[补充阶段 {idx}] ✗ 失败: {str(e)}")
-            result['error'] = str(e)
-
-        return result
-
-    def _execute_code_iteration_phase(
-        self,
-        urls: List[str],
-        final_schema: Dict,
-        schema_phase_rounds: List[Dict]
-    ) -> Dict:
-        """
-        执行代码迭代阶段
-
-        复用Schema阶段的HTML，不重复获取网页和截图
-        只进行代码生成和迭代优化
-
-        第一轮：基于最终Schema生成初始解析代码
-        后续轮：基于验证结果优化代码
-
-        Args:
-            urls: URL列表（应与schema_phase_rounds对应）
-            final_schema: 来自Schema迭代阶段的最终Schema
-            schema_phase_rounds: Schema阶段的轮次数据（包含HTML）
-
-        Returns:
-            代码迭代结果
-        """
-        result = {
-            'rounds': [],
-            'parsers': [],
-            'final_parser': None,
-            'success': False,
-        }
-
-        # 确保有可用的Schema阶段数据
-        if not schema_phase_rounds:
-            logger.error("Schema阶段没有可用的数据")
-            return result
-
-        current_parser_code = None
-        current_parser_path = None
-
-        # 使用Schema阶段的轮次数据
-        for idx, schema_round in enumerate(schema_phase_rounds, 1):
-            if not schema_round.get('success'):
-                logger.warning(f"Schema阶段第 {idx} 轮失败，跳过代码生成")
-                continue
-
-            logger.info(f"\n{'─'*70}")
-            logger.info(f"代码迭代 - 第 {idx}/{len(schema_phase_rounds)} 轮")
-            logger.info(f"{'─'*70}")
-
-            try:
-                # 复用Schema阶段的HTML（精简后的）
-                html_path = schema_round.get('html_path')
-                html_original_path = schema_round.get('html_original_path')
-                if not html_path:
-                    logger.error(f"  ✗ Schema阶段第 {idx} 轮缺少HTML路径")
-                    continue
-
-                logger.info(f"  [1/2] 复用Schema阶段的精简HTML")
-                with open(html_path, 'r', encoding='utf-8') as f:
-                    html_content = f.read()
-                logger.success(f"  ✓ 精简HTML已加载（长度: {len(html_content)} 字符）")
-
-                # 生成或优化解析代码
-                if idx == 1:
-                    logger.info(f"  [2/2] 生成初始解析代码...")
-                    parser_result = generate_parser_code.invoke({
-                        "html_content": html_content,
-                        "target_json": final_schema,
-                        "output_dir": str(self.parsers_dir)
-                    })
-                    logger.success(f"  ✓ 初始解析代码已生成")
-                else:
-                    logger.info(f"  [2/2] 优化解析代码（基于上一轮）...")
-                    parser_result = generate_parser_code.invoke({
-                        "html_content": html_content,
-                        "target_json": final_schema,
-                        "output_dir": str(self.parsers_dir),
-                        "previous_parser_code": current_parser_code,
-                        "previous_parser_path": current_parser_path,
-                        "round_num": idx
-                    })
-                    logger.success(f"  ✓ 解析代码已优化")
-
-                # 保存解析器代码
-                parser_filename = f"parser_round_{idx}.py"
-                code_parser_path = self.parsers_dir / parser_filename
-                with open(code_parser_path, 'w', encoding='utf-8') as f:
-                    f.write(parser_result['code'])
-
-                # 更新当前解析器
-                current_parser_code = parser_result['code']
-                current_parser_path = str(code_parser_path)
-                parser_result['parser_path'] = current_parser_path
-
-                # 记录本轮结果（复用Schema阶段的数据）
-                round_result = {
-                    'round': idx,
-                    'url': schema_round['url'],
-                    'html_path': html_path,
-                    'groundtruth_schema': schema_round.get('groundtruth_schema'),  # 复用Schema阶段的groundtruth
-                    'parser_path': current_parser_path,
-                    'parser_code': current_parser_code,
-                    'parser_result': parser_result,
-                    'success': True,
-                }
-                result['rounds'].append(round_result)
-                result['parsers'].append(parser_result)
-                logger.success(f"代码迭代第 {idx} 轮完成")
-
-            except Exception as e:
-                logger.error(f"代码迭代第 {idx} 轮失败: {str(e)}")
-                import traceback
-                logger.debug(traceback.format_exc())
-
-                round_result = {
-                    'round': idx,
-                    'url': schema_round.get('url'),
-                    'error': str(e),
-                    'success': False,
-                }
-                result['rounds'].append(round_result)
-
-                if idx == 1:
-                    # 第一轮失败则退出
-                    return result
-
-        # 设置最终解析器
-        if current_parser_code:
-            # 保存最终解析器
-            final_parser_path = self.output_dir / "final_parser.py"
-            with open(final_parser_path, 'w', encoding='utf-8') as f:
-                f.write(current_parser_code)
-            logger.success(f"最终解析器已保存: {final_parser_path}")
-
-            result['final_parser'] = {
-                'parser_path': str(final_parser_path),
-                'code': current_parser_code,
-                'config_path': None,  # 可以添加配置文件路径
-                'config': final_schema,
-            }
-            result['success'] = True
-
-        return result
-
-    def _parse_all_html_with_final_parser(self, results: Dict, all_rounds: List[Dict]) -> None:
-        """
-        使用最终解析器解析所有HTML文件并生成JSON，保存到result目录
-
-        Args:
-            results: 执行结果
-            all_rounds: 所有轮次数据（包含schema和code阶段）
-        """
-        final_parser_path = results['final_parser']['parser_path']
-
-        try:
-            # 加载最终解析器
-            logger.info(f"  加载最终解析器: {final_parser_path}")
-            parser = self._load_parser(final_parser_path)
-
-            # 扫描精简HTML目录下的所有HTML文件
-            html_files = sorted(self.html_simplified_dir.glob("*.html"))
-
-            if not html_files:
-                logger.warning(f"  精简HTML目录下没有找到HTML文件: {self.html_simplified_dir}")
-                # 尝试使用原始HTML目录
-                html_files = sorted(self.html_original_dir.glob("*.html"))
-                if html_files:
-                    logger.info(f"  使用原始HTML目录: {self.html_original_dir}")
-                else:
-                    logger.error("  原始HTML目录也没有找到HTML文件")
-                    return
-
-            logger.info(f"  找到 {len(html_files)} 个HTML文件")
-
-            # 遍历所有HTML文件
-            for html_path in html_files:
-                logger.info(f"  解析 {html_path.name}...")
-
-                try:
-                    # 读取HTML内容
-                    with open(html_path, 'r', encoding='utf-8') as f:
-                        html_content = f.read()
-
-                    # 使用解析器解析HTML
-                    parsed_data = parser.parse(html_content)
-
-                    # 确定保存路径（基于原文件名），保存到result目录
-                    json_filename = html_path.stem + '.json'
-                    json_path = self.result_dir / json_filename
-
-                    # 保存JSON
-                    with open(json_path, 'w', encoding='utf-8') as f:
-                        json.dump(parsed_data, f, ensure_ascii=False, indent=2)
-
-                    logger.success(f"  ✓ JSON已保存: {json_path}")
-                    logger.info(f"     提取了 {len(parsed_data)} 个字段")
-
-                except Exception as e:
-                    logger.error(f"  ✗ 解析 {html_path.name} 失败: {str(e)}")
-                    import traceback
-                    logger.debug(traceback.format_exc())
-
-            logger.success(f"所有HTML解析完成，结果已保存到: {self.result_dir}")
-
-        except Exception as e:
-            logger.error(f"加载最终解析器失败: {str(e)}")
-            import traceback
-            logger.debug(traceback.format_exc())
-
-    def _load_parser(self, parser_path: str):
-        """动态加载解析器类"""
-        spec = importlib.util.spec_from_file_location("parser_module", parser_path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["parser_module"] = module
-        spec.loader.exec_module(module)
-
-        # 获取WebPageParser类
-        if hasattr(module, 'WebPageParser'):
-            return module.WebPageParser()
-        else:
-            raise Exception("解析器中未找到WebPageParser类")
 
     def parse_all_html_files(self, html_files: List[str], parser_path: str) -> Dict:
         """
@@ -802,89 +163,7 @@ class AgentExecutor:
         Returns:
             批量解析结果
         """
-        logger.info(f"\n{'='*70}")
-        logger.info(f"批量解析阶段：使用生成的解析器解析所有HTML文件")
-        logger.info(f"{'='*70}")
-        logger.info(f"总文件数: {len(html_files)}")
-        logger.info(f"解析器路径: {parser_path}")
-
-        results = {
-            'success': True,
-            'total_files': len(html_files),
-            'parsed_files': [],
-            'failed_files': [],
-            'output_dir': str(self.result_dir),
-        }
-
-        try:
-            # 加载解析器
-            logger.info("\n加载解析器...")
-            parser = self._load_parser(parser_path)
-            logger.success("解析器加载成功")
-
-            # 批量解析所有HTML文件
-            logger.info(f"\n开始批量解析 {len(html_files)} 个HTML文件...")
-
-            # 使用进度条显示解析进度
-            with tqdm(total=len(html_files), desc="解析HTML文件", unit="file") as pbar:
-                for html_file_path in html_files:
-                    html_path = Path(html_file_path)
-
-                    try:
-                        # 读取HTML内容
-                        with open(html_path, 'r', encoding='utf-8') as f:
-                            html_content = f.read()
-
-                        # 使用解析器解析HTML
-                        parsed_data = parser.parse(html_content)
-
-                        # 确定保存路径（基于原文件名）
-                        json_filename = html_path.stem + '.json'
-                        json_path = self.result_dir / json_filename
-
-                        # 保存JSON
-                        with open(json_path, 'w', encoding='utf-8') as f:
-                            json.dump(parsed_data, f, ensure_ascii=False, indent=2)
-
-                        results['parsed_files'].append({
-                            'html_file': str(html_path),
-                            'json_file': str(json_path),
-                            'fields_count': len(parsed_data),
-                        })
-
-                        # 更新进度条
-                        pbar.update(1)
-
-                    except Exception as e:
-                        # 只在出错时输出日志
-                        logger.error(f"✗ 解析失败 ({html_path.name}): {str(e)}")
-                        results['failed_files'].append({
-                            'html_file': str(html_path),
-                            'error': str(e),
-                        })
-                        import traceback
-                        logger.debug(traceback.format_exc())
-
-                        # 更新进度条
-                        pbar.update(1)
-
-            # 输出汇总
-            logger.info(f"\n{'='*70}")
-            logger.info("批量解析完成")
-            logger.info(f"{'='*70}")
-            logger.success(f"成功解析: {len(results['parsed_files'])}/{len(html_files)} 个文件")
-            if results['failed_files']:
-                logger.warning(f"失败: {len(results['failed_files'])} 个文件")
-            logger.info(f"结果保存目录: {self.result_dir}")
-            logger.info(f"{'='*70}\n")
-
-            results['success'] = len(results['parsed_files']) > 0
-            return results
-
-        except Exception as e:
-            logger.error(f"批量解析过程出错: {str(e)}")
-            import traceback
-            logger.debug(traceback.format_exc())
-            results['success'] = False
-            results['error'] = str(e)
-            return results
+        return self.parser_processor.process({
+            'html_files': html_files,
+            'parser_path': parser_path,
+        })

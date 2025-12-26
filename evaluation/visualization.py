@@ -199,44 +199,79 @@ class EvaluationReporter:
             </tbody>
         </table>
 
-        <h2>Sample Results</h2>
-        <p>Showing first 10 pages with detailed extraction results</p>
+        <h2>Error Samples by Attribute</h2>
+        <p>Showing up to 3 error samples per attribute (samples where extraction did not match groundtruth)</p>
 """
 
-        for i, page_result in enumerate(results['page_results'][:10]):
-            html_content += f"""
-        <div class="detail-section">
-            <h4>Page: {page_result['page_id']}</h4>
-"""
+        # Collect error samples by attribute
+        error_samples_by_attr = {}
+        for page_result in results['page_results']:
             for attr, details in page_result['field_details'].items():
-                match_icon = "✓" if details['match'] else "✗"
-                match_class = "success" if details['match'] else "error"
+                # Only collect samples where match is False
+                if not details['match']:
+                    if attr not in error_samples_by_attr:
+                        error_samples_by_attr[attr] = []
 
-                # Get raw extracted values (from JSON keys)
-                raw_values = details.get('raw_extracted', [])
-                matched_values = details.get('extracted', [])
-                gt_values = details.get('groundtruth', [])
+                    error_samples_by_attr[attr].append({
+                        'page_id': page_result['page_id'],
+                        'details': details
+                    })
 
+        # Display error samples grouped by attribute
+        if error_samples_by_attr:
+            for attr, error_samples in error_samples_by_attr.items():
                 html_content += f"""
-            <p><strong>{attr}:</strong> <span class="{match_class}">{match_icon}</span></p>
-            <p style="margin-left: 20px;">
-                <strong>Groundtruth:</strong> {', '.join(gt_values) if gt_values else '<em>None</em>'}<br>
-                <strong>JSON Value:</strong> {', '.join(raw_values) if raw_values else '<em>(not found in JSON)</em>'}<br>
+        <div class="detail-section">
+            <h3>{attr}</h3>
+            <p>Total errors: <span class="error">{len(error_samples)}</span></p>
+"""
+                # Show first 3 error samples for this attribute
+                for sample in error_samples[:3]:
+                    page_id = sample['page_id']
+                    details = sample['details']
+
+                    raw_values = details.get('raw_extracted', [])
+                    matched_values = details.get('extracted', [])
+                    gt_values = details.get('groundtruth', [])
+
+                    html_content += f"""
+            <div style="margin-left: 20px; margin-bottom: 15px; padding: 10px; border-left: 3px solid #e74c3c; background-color: #fff5f5;">
+                <p><strong>Page ID:</strong> {page_id}</p>
+                <p style="margin-left: 10px;">
+                    <strong>Groundtruth:</strong> {', '.join(gt_values) if gt_values else '<em>None</em>'}<br>
+                    <strong>JSON Value:</strong> {', '.join(raw_values) if raw_values else '<em>(not found in JSON)</em>'}<br>
 """
 
-                # Show matched values if different from raw
-                if matched_values != raw_values:
-                    html_content += f"""                <strong>Matched Values:</strong> {', '.join(matched_values) if matched_values else '<em>(no match with groundtruth)</em>'}<br>
+                    # Show matched values if different from raw
+                    if matched_values != raw_values:
+                        html_content += f"""                    <strong>Matched Values:</strong> {', '.join(matched_values) if matched_values else '<em>(no match with groundtruth)</em>'}<br>
 """
 
-                # Add explanation if no match
-                if not details['match'] and raw_values:
-                    html_content += f"""                <em style="color: #e74c3c;">⚠️ Extracted value does not match groundtruth (precision matching required)</em>
+                    # Add explanation
+                    if raw_values:
+                        html_content += f"""                    <em style="color: #e74c3c;">⚠️ Extracted value does not match groundtruth (precision matching required)</em>
+"""
+                    else:
+                        html_content += f"""                    <em style="color: #f39c12;">⚠️ Field not found in extracted JSON</em>
 """
 
-                html_content += """            </p>
+                    html_content += """                </p>
+            </div>
 """
+
+                # Show hint if there are more than 3 errors
+                if len(error_samples) > 3:
+                    html_content += f"""
+            <p style="margin-left: 20px;"><em>... and {len(error_samples) - 3} more error samples for this attribute</em></p>
+"""
+
+                html_content += """
+        </div>
+"""
+        else:
             html_content += """
+        <div class="detail-section">
+            <p class="success">No errors found! All extractions match groundtruth perfectly.</p>
         </div>
 """
 
@@ -419,3 +454,289 @@ class EvaluationReporter:
         self.save_json_report(results)
         self.save_csv_summary(results)
         print("All reports generated successfully!")
+
+    @staticmethod
+    def generate_integrated_report(results_list: List[Dict[str, Any]], output_path: Path) -> None:
+        """
+        Generate an integrated HTML report combining error samples from all websites.
+
+        Args:
+            results_list: List of evaluation results from all websites
+            output_path: Path to save the integrated report
+        """
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Collect overall statistics
+        total_websites = len(results_list)
+        total_pages = sum(r['statistics']['evaluated_pages'] for r in results_list)
+        total_errors = sum(r['statistics']['errors'] for r in results_list)
+
+        # Calculate overall metrics
+        if results_list:
+            avg_precision = sum(r['overall_metrics']['precision'] for r in results_list) / len(results_list)
+            avg_recall = sum(r['overall_metrics']['recall'] for r in results_list) / len(results_list)
+            avg_f1 = sum(r['overall_metrics']['f1'] for r in results_list) / len(results_list)
+        else:
+            avg_precision = avg_recall = avg_f1 = 0.0
+
+        # Start HTML content
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Integrated SWDE Evaluation Report - All Error Samples</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }}
+        h1 {{
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }}
+        h2 {{
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #95a5a6;
+            padding-bottom: 5px;
+        }}
+        h3 {{
+            color: #34495e;
+            margin-top: 20px;
+        }}
+        h4 {{
+            color: #7f8c8d;
+            margin-top: 15px;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }}
+        th, td {{
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }}
+        th {{
+            background-color: #3498db;
+            color: white;
+        }}
+        tr:hover {{
+            background-color: #f5f5f5;
+        }}
+        .metric-box {{
+            display: inline-block;
+            padding: 20px;
+            margin: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-width: 150px;
+        }}
+        .metric-value {{
+            font-size: 32px;
+            font-weight: bold;
+        }}
+        .metric-label {{
+            font-size: 14px;
+            opacity: 0.9;
+        }}
+        .success {{ color: #27ae60; font-weight: bold; }}
+        .error {{ color: #e74c3c; font-weight: bold; }}
+        .warning {{ color: #f39c12; font-weight: bold; }}
+        .detail-section {{
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+        }}
+        .website-section {{
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #ecf0f1;
+            border-left: 5px solid #2c3e50;
+        }}
+        .error-sample {{
+            margin-left: 20px;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-left: 3px solid #e74c3c;
+            background-color: #fff5f5;
+        }}
+        .timestamp {{
+            color: #7f8c8d;
+            font-size: 14px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Integrated SWDE Evaluation Report</h1>
+        <p class="timestamp">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+
+        <div class="detail-section">
+            <h3>Overall Statistics</h3>
+            <p><strong>Total Websites:</strong> {total_websites}</p>
+            <p><strong>Total Pages Evaluated:</strong> {total_pages}</p>
+            <p><strong>Total Errors:</strong> <span class="{'error' if total_errors > 0 else 'success'}">{total_errors}</span></p>
+        </div>
+
+        <h2>Overall Performance</h2>
+        <div style="text-align: center;">
+            <div class="metric-box">
+                <div class="metric-value">{avg_precision:.2%}</div>
+                <div class="metric-label">Average Precision</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-value">{avg_recall:.2%}</div>
+                <div class="metric-label">Average Recall</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-value">{avg_f1:.2%}</div>
+                <div class="metric-label">Average F1 Score</div>
+            </div>
+        </div>
+
+        <h2>Error Samples by Website and Attribute</h2>
+        <p>Showing up to 3 error samples per attribute for each website</p>
+"""
+
+        # Process each website's results
+        for results in results_list:
+            vertical = results['vertical']
+            website = results['website']
+
+            html_content += f"""
+        <div class="website-section">
+            <h3>{vertical}/{website}</h3>
+            <p><strong>Precision:</strong> {results['overall_metrics']['precision']:.2%} |
+               <strong>Recall:</strong> {results['overall_metrics']['recall']:.2%} |
+               <strong>F1:</strong> {results['overall_metrics']['f1']:.2%}</p>
+            <p><strong>Evaluated Pages:</strong> {results['statistics']['evaluated_pages']}</p>
+"""
+
+            # Collect error samples by attribute for this website
+            error_samples_by_attr = {}
+            for page_result in results['page_results']:
+                for attr, details in page_result['field_details'].items():
+                    if not details['match']:
+                        if attr not in error_samples_by_attr:
+                            error_samples_by_attr[attr] = []
+
+                        error_samples_by_attr[attr].append({
+                            'page_id': page_result['page_id'],
+                            'details': details
+                        })
+
+            # Display error samples by attribute
+            if error_samples_by_attr:
+                for attr, error_samples in error_samples_by_attr.items():
+                    # Get attribute metrics if available
+                    attr_metrics = results['attribute_metrics'].get(attr, {})
+                    attr_f1 = attr_metrics.get('f1', 0.0)
+
+                    html_content += f"""
+            <h4>{attr} <span class="{'error' if attr_f1 < 0.5 else 'warning' if attr_f1 < 0.8 else 'success'}">(F1: {attr_f1:.2%})</span></h4>
+            <p>Total errors: <span class="error">{len(error_samples)}</span></p>
+"""
+
+                    # Show first 3 error samples
+                    for sample in error_samples[:3]:
+                        page_id = sample['page_id']
+                        details = sample['details']
+
+                        raw_values = details.get('raw_extracted', [])
+                        matched_values = details.get('extracted', [])
+                        gt_values = details.get('groundtruth', [])
+
+                        html_content += f"""
+            <div class="error-sample">
+                <p><strong>Page ID:</strong> {page_id}</p>
+                <p style="margin-left: 10px;">
+                    <strong>Groundtruth:</strong> {', '.join(gt_values) if gt_values else '<em>None</em>'}<br>
+                    <strong>JSON Value:</strong> {', '.join(raw_values) if raw_values else '<em>(not found in JSON)</em>'}<br>
+"""
+
+                        if matched_values != raw_values:
+                            html_content += f"""                    <strong>Matched Values:</strong> {', '.join(matched_values) if matched_values else '<em>(no match with groundtruth)</em>'}<br>
+"""
+
+                        if raw_values:
+                            html_content += f"""                    <em style="color: #e74c3c;">⚠️ Extracted value does not match groundtruth</em>
+"""
+                        else:
+                            html_content += f"""                    <em style="color: #f39c12;">⚠️ Field not found in extracted JSON</em>
+"""
+
+                        html_content += """                </p>
+            </div>
+"""
+
+                    if len(error_samples) > 3:
+                        html_content += f"""
+            <p style="margin-left: 20px;"><em>... and {len(error_samples) - 3} more error samples for this attribute</em></p>
+"""
+            else:
+                html_content += """
+            <p class="success">✓ No errors for this website - all extractions match groundtruth!</p>
+"""
+
+            html_content += """
+        </div>
+"""
+
+        # Add website performance summary table
+        html_content += """
+        <h2>Website Performance Summary</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Vertical/Website</th>
+                    <th>Precision</th>
+                    <th>Recall</th>
+                    <th>F1 Score</th>
+                    <th>Pages</th>
+                    <th>Errors</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+
+        for results in results_list:
+            html_content += f"""
+                <tr>
+                    <td><strong>{results['vertical']}/{results['website']}</strong></td>
+                    <td>{results['overall_metrics']['precision']:.2%}</td>
+                    <td>{results['overall_metrics']['recall']:.2%}</td>
+                    <td>{results['overall_metrics']['f1']:.2%}</td>
+                    <td>{results['statistics']['evaluated_pages']}</td>
+                    <td class="{'error' if results['statistics']['errors'] > 0 else 'success'}">{results['statistics']['errors']}</td>
+                </tr>
+"""
+
+        html_content += """
+            </tbody>
+        </table>
+
+    </div>
+</body>
+</html>
+"""
+
+        # Write to file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+
+        print(f"✅ Integrated error report saved to: {output_path}")

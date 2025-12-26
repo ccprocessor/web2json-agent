@@ -97,8 +97,6 @@ class ParserAgent:
             if not self.schema_template:
                 raise ValueError("预定义模式需要提供schema_template参数")
 
-        logger.info("="*70)
-        logger.info("开始生成解析器")
         logger.info(f"Schema模式: {self.schema_mode}")
         logger.info("="*70)
 
@@ -131,10 +129,6 @@ class ParserAgent:
         # 第四步：总结
         logger.info("\n[步骤 4/4] 生成总结")
         summary = self._generate_summary(execution_result, parse_result)
-
-        logger.info("="*70)
-        logger.success("解析器生成完成!")
-        logger.info("="*70)
 
         return {
             'success': True,
