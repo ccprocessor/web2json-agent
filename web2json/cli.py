@@ -263,8 +263,6 @@ def cmd_generate(args):
         logger.info(f"  解析器路径: {result['parser_path']}")
         logger.info(f"  配置路径: {result['config_path']}")
 
-        logger.info("\n使用方法:")
-        logger.info(f"  python {result['parser_path']} <url_or_html_file>")
     else:
         logger.error("\n✗ 解析器生成失败")
         if 'error' in result:
