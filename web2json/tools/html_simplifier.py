@@ -274,6 +274,7 @@ def simplify_html(
         # xpath模式：为xpath提取优化
         if mode == 'xpath':
             # 删除明确无用的标签，但保留可能有内容的标签
+            # 注意：form 标签会被 unwrap 处理，不在删除列表中
             remove_tags_list = [
                 # 头部和元数据
                 'base', 'head', 'link', 'meta', 'style', 'title',
@@ -282,7 +283,7 @@ def simplify_html(
                 # 表单元素（通常不需要）
                 'button', 'datalist', 'fieldset', 'input', 'label',
                 'legend', 'meter', 'optgroup', 'option', 'output',
-                'progress', 'select', 'textarea', 'form',
+                'progress', 'select', 'textarea',
                 # 其他
                 'canvas', 'dialog', 'source', 'track',
             ]
