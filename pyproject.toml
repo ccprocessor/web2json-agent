@@ -47,6 +47,11 @@ dependencies = [
     "requests==2.32.3",
     "numpy>=1.24.0",
     "scikit-learn>=1.3.0",
+    # Web API dependencies
+    "fastapi==0.109.0",
+    "uvicorn[standard]==0.27.0",
+    "python-multipart==0.0.6",
+    "aiofiles==23.2.1",
 ]
 
 [project.optional-dependencies]
@@ -70,6 +75,7 @@ web2json = "web2json.cli:main"
 where = ["."]
 include = [
     "web2json*",
+    "web2json_api*",
 ]
 exclude = [
     "tests*",
@@ -82,6 +88,7 @@ exclude = [
     "evaluation*",
     "evaluationSet*",
     "swde_*",
+    "web2json_ui*",
 ]
 
 [tool.setuptools.package-data]
