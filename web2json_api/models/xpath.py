@@ -11,25 +11,38 @@ class XPathGenerateRequest(BaseModel):
     """
     XPath生成请求
 
-    用户提供两种方式之一：
-    1. 直接提供HTML内容 (html_content)
-    2. 提供URL (url)
+    支持多样本输入（提高XPath准确率）：
+    1. 多个HTML内容 (html_contents)
+    2. 多个URL (urls)
+    3. 单个HTML内容 (html_content) - 兼容旧版
+    4. 单个URL (url) - 兼容旧版
 
     以及需要抽取的字段列表
     """
-    html_content: Optional[str] = Field(None, description="HTML内容（与url二选一）")
-    url: Optional[str] = Field(None, description="网页URL（与html_content二选一）")
+    # 多样本输入（推荐）
+    html_contents: Optional[List[str]] = Field(None, description="多个HTML内容（推荐：2-5个样本）")
+    urls: Optional[List[str]] = Field(None, description="多个网页URL（推荐：2-5个样本）")
+
+    # 单样本输入（向后兼容）
+    html_content: Optional[str] = Field(None, description="单个HTML内容（兼容旧版）")
+    url: Optional[str] = Field(None, description="单个网页URL（兼容旧版）")
+
     fields: List[FieldInput] = Field(..., description="需要抽取的字段列表")
+    iteration_rounds: Optional[int] = Field(None, description="迭代轮数（默认使用所有样本）")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "html_content": "<html><body><h1>Title</h1><span class='price'>$99.99</span></body></html>",
-                "url": None,
+                "html_contents": [
+                    "<html><body><h1>Title 1</h1><span class='price'>$99.99</span></body></html>",
+                    "<html><body><h1>Title 2</h1><span class='price'>$89.99</span></body></html>"
+                ],
+                "urls": None,
                 "fields": [
                     {"name": "title", "description": "Page title", "field_type": "string"},
                     {"name": "price", "description": "Product price", "field_type": "string"}
-                ]
+                ],
+                "iteration_rounds": 2
             }
         }
 
