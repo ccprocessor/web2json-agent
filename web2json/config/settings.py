@@ -44,6 +44,9 @@ class Settings(BaseModel):
     code_gen_temperature: float = Field(default_factory=lambda: float(os.getenv("CODE_GEN_TEMPERATURE", "0.3")))
     code_gen_max_tokens: int = Field(default_factory=lambda: int(os.getenv("CODE_GEN_MAX_TOKENS", "16384")))
 
+    # 代码生成 Prompt 版本 (v1: 原始版本, v2: SWDE优化版本)
+    code_gen_prompt_version: str = Field(default_factory=lambda: os.getenv("CODE_GEN_PROMPT_VERSION", "v2"))
+
     # 视觉理解
     vision_model: str = Field(default_factory=lambda: os.getenv("VISION_MODEL", "qwen-vl-max"))
     vision_temperature: float = Field(default_factory=lambda: float(os.getenv("VISION_TEMPERATURE", "0")))

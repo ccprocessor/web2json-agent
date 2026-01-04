@@ -3,6 +3,7 @@
 用于生成和优化 BeautifulSoup 解析代码
 """
 import json
+import os
 from typing import Dict
 
 
@@ -24,6 +25,20 @@ class CodeGeneratorPrompts:
         # 截断过长的HTML
         if len(html_content) > 30000:
             html_content = html_content[:30000] + "\n... (截断)"
+
+        # 获取prompt版本配置
+        prompt_version = os.getenv("CODE_GEN_PROMPT_VERSION", "v2")
+
+        # V2版本的额外要求（针对SWDE优化）
+        v2_extra_requirements = ""
+        if prompt_version == "v2":
+            v2_extra_requirements = """
+8. **数据完整性（重要）**：提取字段时，必须保留HTML中的原始格式：
+   - 不要只截取元素的部分内容，即使与字段要求无关
+   - 必要时，可以使用 .strip() 清理首尾空白
+9. **多策略提取**：每个字段应至少实现2-3种提取策略，提高鲁棒性
+10. **空值处理（重要）**：如果字段值为空（空字符串、空列表等），必须返回None而不是空值
+"""
 
         return f"""
 你是一个专业的HTML解析代码生成器。请根据以下信息生成一个Python类，用于解析同类网页。
@@ -47,7 +62,8 @@ class CodeGeneratorPrompts:
 5. 尽量使用类名、ID等稳定属性，避免使用绝对索引
 6. 代码尽量简洁，减少冗余
 7. 添加适当的错误处理
-
+8. **空值处理（必须）**：如果字段值为空（空字符串、空列表等），必须返回None而不是空值
+{v2_extra_requirements}
 ## 输出格式 - 重要！
 **严格要求：**
 1. 直接输出纯Python代码，从 `import` 语句开始
@@ -117,7 +133,8 @@ if __name__ == '__main__':
         html_content: str,
         target_json: Dict,
         previous_parser_code: str,
-        round_num: int
+        round_num: int,
+        first_round_extraction_result: Dict = None
     ) -> str:
         """
         获取代码优化 Prompt（第二轮及以后）
@@ -127,13 +144,45 @@ if __name__ == '__main__':
             target_json: 目标 JSON 结构
             previous_parser_code: 前一轮的解析代码
             round_num: 当前轮次号
+            first_round_extraction_result: 第一轮的抽取结果（用于观察空值字段）
 
         Returns:
             Prompt 字符串
         """
-        # 截断过长的HTML
-        if len(html_content) > 30000:
-            html_content = html_content[:30000] + "\n... (截断)"
+
+        # 构建第一轮抽取结果展示部分
+        extraction_result_section = ""
+        if first_round_extraction_result:
+            # 分析哪些字段为空
+            empty_fields = []
+            non_empty_fields = []
+            for field, value in first_round_extraction_result.items():
+                if not value or value == "" or value is None:
+                    empty_fields.append(field)
+                else:
+                    non_empty_fields.append(field)
+
+            extraction_result_section = f"""
+## 第一轮抽取结果
+```json
+{json.dumps(first_round_extraction_result, ensure_ascii=False, indent=2)}
+```
+
+**字段提取情况分析：**
+"""
+            if empty_fields:
+                extraction_result_section += f"""
+- ❌ **未成功提取的字段（需要重点优化）**: {', '.join(empty_fields)}
+"""
+            if non_empty_fields:
+                extraction_result_section += f"""
+- ✓ 已成功提取的字段: {', '.join(non_empty_fields)}
+"""
+
+            extraction_result_section += """
+**优化重点：**
+- 对于未成功提取的字段，首先判断文中是否明确出现，如果明确出现，则需要尝试新的提取策略（检查表格、列表、脚本标签等），否则继续保留为None
+"""
 
         return f"""
 你是一个专业的HTML解析代码优化师。你需要根据新的HTML样本和更新的字段列表，优化和补充之前生成的解析代码。
@@ -147,7 +196,7 @@ if __name__ == '__main__':
 {previous_parser_code[:2000]}
 ...（部分代码）
 ```
-
+{extraction_result_section}
 ## 新的HTML示例
 ```html
 {html_content}
@@ -166,7 +215,7 @@ if __name__ == '__main__':
 4. 代码尽量简洁，减少冗余
 5. 添加适当的错误处理
 6. main函数是固定的，不要修改
-
+7. **空值处理（必须）**：如果字段值为空（空字符串、空列表等），必须返回None而不是空值
 ## 输出格式 - 重要！
 **严格要求：**
 1. 直接输出纯Python代码，从 `import` 语句开始

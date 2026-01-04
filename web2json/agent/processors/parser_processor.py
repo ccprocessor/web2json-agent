@@ -77,6 +77,9 @@ class ParserProcessor(BaseProcessor):
                         # 使用解析器解析 HTML
                         parsed_data = parser.parse(html_content)
 
+                        # 规范化解析结果中的Unicode字符
+                        parsed_data = self._normalize_result(parsed_data)
+
                         # 确定保存路径（基于原文件名）
                         json_filename = html_path.stem + '.json'
                         json_path = self.result_dir / json_filename
@@ -127,6 +130,58 @@ class ParserProcessor(BaseProcessor):
             results['success'] = False
             results['error'] = str(e)
             return results
+
+    def _normalize_text(self, text: str) -> str:
+        """
+        规范化文本中的Unicode特殊字符
+
+        Args:
+            text: 原始文本
+
+        Returns:
+            规范化后的文本
+        """
+        if not text or not isinstance(text, str):
+            return text
+
+        # 将各种Unicode连字符转换为标准ASCII连字符
+        text = text.replace('\u2013', '-')  # en dash
+        text = text.replace('\u2014', '-')  # em dash
+        text = text.replace('\u2015', '-')  # horizontal bar
+        text = text.replace('\u2212', '-')  # minus sign
+
+        # 将Unicode引号转换为标准引号
+        text = text.replace('\u2018', "'")  # left single quotation mark
+        text = text.replace('\u2019', "'")  # right single quotation mark
+        text = text.replace('\u201c', '"')  # left double quotation mark
+        text = text.replace('\u201d', '"')  # right double quotation mark
+
+        # 规范化空白字符
+        text = text.replace('\u00a0', ' ')  # non-breaking space
+        text = text.replace('\u2002', ' ')  # en space
+        text = text.replace('\u2003', ' ')  # em space
+        text = text.replace('\u2009', ' ')  # thin space
+
+        return text
+
+    def _normalize_result(self, data: Any) -> Any:
+        """
+        递归规范化解析结果中的所有文本
+
+        Args:
+            data: 解析结果（可以是dict, list, str或其他类型）
+
+        Returns:
+            规范化后的数据
+        """
+        if isinstance(data, dict):
+            return {key: self._normalize_result(value) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self._normalize_result(item) for item in data]
+        elif isinstance(data, str):
+            return self._normalize_text(data)
+        else:
+            return data
 
     def _load_parser(self, parser_path: str):
         """动态加载解析器类"""
