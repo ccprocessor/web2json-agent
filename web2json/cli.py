@@ -229,7 +229,7 @@ def cmd_generate(args):
             logger.error(f"读取Schema模板文件失败: {e}")
             sys.exit(1)
 
-    # 获取HTML文件列表
+    # 获取HTML文件列表（从目录读取）
     logger.info(f"从目录读取HTML文件: {args.directory}")
     html_files = read_html_files_from_directory(args.directory)
     logger.info(f"读取到 {len(html_files)} 个HTML文件")
@@ -325,6 +325,7 @@ def main():
     # 主命令参数（生成解析器）
     parser.add_argument(
         '-d', '--directory',
+        required=True,
         help='HTML文件目录路径'
     )
     parser.add_argument(

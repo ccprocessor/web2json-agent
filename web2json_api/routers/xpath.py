@@ -110,9 +110,7 @@ async def generate_xpaths(request: XPathGenerateRequest):
         # 调用服务生成XPath
         output_fields = xpath_service.generate_xpaths(
             html_contents=request.html_contents,
-            urls=request.urls,
             html_content=request.html_content,
-            url=request.url,
             fields=request.fields,
             iteration_rounds=request.iteration_rounds
         )

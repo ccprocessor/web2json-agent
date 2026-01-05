@@ -1,6 +1,6 @@
 """
 Agent 执行器
-负责阶段编排和流程控制（重构简化版）
+负责阶段编排和流程控制
 """
 from pathlib import Path
 from typing import Dict, List
@@ -50,7 +50,6 @@ class AgentExecutor:
 
     def _setup_directories(self):
         """创建输出子目录"""
-        self.screenshots_dir = self.output_dir / "screenshots"
         self.parsers_dir = self.output_dir / "parsers"
         self.html_original_dir = self.output_dir / "html_original"
         self.html_simplified_dir = self.output_dir / "html_simplified"
@@ -58,7 +57,6 @@ class AgentExecutor:
         self.schemas_dir = self.output_dir / "schemas"
 
         for dir_path in [
-            self.screenshots_dir,
             self.parsers_dir,
             self.html_original_dir,
             self.html_simplified_dir,
@@ -106,7 +104,7 @@ class AgentExecutor:
         执行计划 - 两阶段迭代
 
         阶段1: Schema迭代（前N个URL）- 获取HTML -> 提取/优化JSON Schema
-        阶段2: 代码迭代（后M个URL）- 基于最终Schema生成代码 -> 验证 -> 优化代码
+        阶段2: 代码迭代（前N个URL）- 基于最终Schema生成代码 -> 验证 -> 优化代码
 
         Args:
             plan: 执行计划

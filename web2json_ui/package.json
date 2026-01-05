@@ -1,0 +1,18 @@
+{
+  "name": "web2json-ui",
+  "version": "1.0.0",
+  "description": "Web UI for Web2JSON Agent - AI-powered XPath generator",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.0",
+    "axios": "^1.6.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}

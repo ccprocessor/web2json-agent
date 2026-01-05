@@ -159,54 +159,27 @@ web2json -d html_samples/ -o output/result --interactive-schema
 
 ---
 
-## 命令行工具使用
+## 🎨 Web UI 前端界面（可选）
 
-### 上传文档 (`upload doc`)
+项目提供了一个可视化的 Web UI 界面，方便在浏览器中操作。
 
-上传单个或多个文档供后续处理。
+### 安装和启动
 
-**命令**:
 ```bash
-web2json upload doc <file_path_or_directory>
+# 进入前端目录
+cd web2json_ui/
+
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+
+# 或构建生产版本
+npm run build
 ```
 
-**成功返回示例**:
-```json
-{
-  "code": 0,
-  "msg": "success",
-  "doc_id": "doc_4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c"
-}
-```
-
-### 查看文档列表 (`docs`)
-
-查看已上传的文档列表。
-
-**命令**:
-```bash
-web2json docs
-```
-
-**成功返回示例**:
-```json
-{
-  "code": 0,
-  "msg": "success",
-  "docs": [
-    {
-      "doc_id": "doc_4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c",
-      "doc_name": "example.html",
-      "created_at": "2025-12-23 17:30:00"
-    },
-    {
-      "doc_id": "doc_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
-      "doc_name": "another_page.html",
-      "created_at": "2025-12-23 17:35:10"
-    }
-  ]
-}
-```
+启动后访问 `http://localhost:5173` 即可使用 Web 界面。
 
 ---
 
@@ -215,30 +188,3 @@ web2json docs
 MIT License
 
 ---
-
-## 📊 SWDE 数据集评测
-
-项目使用 SWDE (Structured Web Data Extraction) 标准数据集进行评测，评测逻辑完全遵循 SWDE 标准：
-
-### 评测标准
-
-1. **归一化方式**
-   - HTML 实体解码 (`&lt;`, `&amp;`, `&nbsp;` 等)
-   - 移除所有空白字符
-   - 转换为小写
-
-2. **匹配策略**
-   - 使用精确匹配（exact match）
-   - 基于集合操作计算指标
-
-3. **指标计算**
-   - TP (True Positive) = |预测集合 ∩ 真值集合|
-   - FP (False Positive) = |预测集合 - 真值集合|
-   - FN (False Negative) = |真值集合 - 预测集合|
-   - Precision = TP / (TP + FP)
-   - Recall = TP / (TP + FN)
-   - F1 = 2 × Precision × Recall / (Precision + Recall)
----
-
-**最后更新**: 2025-12-25
-**版本**: 1.1.0

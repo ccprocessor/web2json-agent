@@ -47,11 +47,6 @@ class Settings(BaseModel):
     # 代码生成 Prompt 版本 (v1: 原始版本, v2: SWDE优化版本)
     code_gen_prompt_version: str = Field(default_factory=lambda: os.getenv("CODE_GEN_PROMPT_VERSION", "v2"))
 
-    # 视觉理解
-    vision_model: str = Field(default_factory=lambda: os.getenv("VISION_MODEL", "qwen-vl-max"))
-    vision_temperature: float = Field(default_factory=lambda: float(os.getenv("VISION_TEMPERATURE", "0")))
-    vision_max_tokens: int = Field(default_factory=lambda: int(os.getenv("VISION_MAX_TOKENS", "16384")))
-
     # ============================================
     # Agent 配置
     # ============================================
@@ -71,13 +66,6 @@ class Settings(BaseModel):
     # DBSCAN聚类参数
     cluster_eps: float = Field(default_factory=lambda: float(os.getenv("CLUSTER_EPS", "0.05")))
     cluster_min_samples: int = Field(default_factory=lambda: int(os.getenv("CLUSTER_MIN_SAMPLES", "2")))
-
-    # ============================================
-    # 浏览器配置
-    # ============================================
-    headless: bool = Field(default_factory=lambda: os.getenv("HEADLESS", "true").lower() == "true")
-    timeout: int = Field(default_factory=lambda: int(os.getenv("TIMEOUT", "30000")))
-    screenshot_full_page: bool = Field(default_factory=lambda: os.getenv("SCREENSHOT_FULL_PAGE", "true").lower() == "true")
 
     # ============================================
     # HTML精简配置

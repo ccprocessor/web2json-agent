@@ -282,7 +282,7 @@ def main():
 
     args = parser.parse_args()
 
-    # 获取HTML文件列表
+    # 获取HTML文件列表（从目录读取）
     logger.info(f"从目录读取HTML文件: {args.directory}")
     html_files = read_html_files_from_directory(args.directory)
     logger.info(f"读取到 {len(html_files)} 个HTML文件")

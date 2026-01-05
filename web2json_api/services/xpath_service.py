@@ -5,7 +5,6 @@ XPath生成服务
 """
 from typing import List, Dict, Optional
 from loguru import logger
-import requests
 
 from web2json.tools.schema_extraction import enrich_schema_with_xpath, merge_multiple_schemas
 from web2json_api.models.field import FieldInput, FieldOutput
@@ -16,63 +15,23 @@ class XPathService:
     XPath生成服务
 
     核心功能：
-    1. 支持多样本输入（HTML内容、URL、文件）
+    1. 支持多样本输入（HTML内容）
     2. 对每个样本调用agent生成schema
     3. 合并多个schema，生成最优XPath
     4. 返回前端需要的格式
     """
 
     @staticmethod
-    def fetch_html_from_url(url: str) -> str:
-        """
-        从URL获取HTML内容
-
-        Args:
-            url: 网页URL
-
-        Returns:
-            HTML内容
-
-        Raises:
-            Exception: 获取失败时抛出异常
-        """
-        try:
-            logger.info(f"正在从URL获取HTML: {url}")
-
-            # 设置请求头，模拟浏览器
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
-
-            # 尝试使用正确的编码
-            response.encoding = response.apparent_encoding
-            html_content = response.text
-
-            logger.success(f"成功获取HTML，长度: {len(html_content)} 字符")
-            return html_content
-
-        except Exception as e:
-            logger.error(f"从URL获取HTML失败: {str(e)}")
-            raise Exception(f"无法访问URL: {str(e)}")
-
-    @staticmethod
     def collect_html_samples(
         html_contents: Optional[List[str]],
-        urls: Optional[List[str]],
-        html_content: Optional[str],
-        url: Optional[str]
+        html_content: Optional[str]
     ) -> List[str]:
         """
         收集所有HTML样本
 
         Args:
             html_contents: 多个HTML内容
-            urls: 多个URL
             html_content: 单个HTML内容（兼容）
-            url: 单个URL（兼容）
 
         Returns:
             HTML样本列表
@@ -87,26 +46,13 @@ class XPathService:
             samples.extend(html_contents)
             logger.info(f"收集到 {len(html_contents)} 个HTML内容")
 
-        # 2. 收集多个URL
-        if urls:
-            for u in urls:
-                html = XPathService.fetch_html_from_url(u)
-                samples.append(html)
-            logger.info(f"从 {len(urls)} 个URL获取HTML")
-
-        # 3. 兼容单个HTML内容
+        # 2. 兼容单个HTML内容
         if html_content:
             samples.append(html_content)
             logger.info("收集到1个HTML内容（单样本模式）")
 
-        # 4. 兼容单个URL
-        if url:
-            html = XPathService.fetch_html_from_url(url)
-            samples.append(html)
-            logger.info("从1个URL获取HTML（单样本模式）")
-
         if not samples:
-            raise ValueError("必须提供至少一个HTML内容或URL")
+            raise ValueError("必须提供至少一个HTML内容")
 
         logger.info(f"总共收集到 {len(samples)} 个HTML样本")
         return samples
@@ -232,9 +178,7 @@ class XPathService:
     @staticmethod
     def generate_xpaths(
         html_contents: Optional[List[str]],
-        urls: Optional[List[str]],
         html_content: Optional[str],
-        url: Optional[str],
         fields: List[FieldInput],
         iteration_rounds: Optional[int] = None
     ) -> List[FieldOutput]:
@@ -243,9 +187,7 @@ class XPathService:
 
         Args:
             html_contents: 多个HTML内容
-            urls: 多个URL
             html_content: 单个HTML内容（兼容）
-            url: 单个URL（兼容）
             fields: 字段列表
             iteration_rounds: 迭代轮数
 
@@ -254,7 +196,7 @@ class XPathService:
         """
         # 1. 收集所有HTML样本
         html_samples = XPathService.collect_html_samples(
-            html_contents, urls, html_content, url
+            html_contents, html_content
         )
 
         # 2. 使用迭代方式生成XPath
