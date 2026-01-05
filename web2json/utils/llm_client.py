@@ -22,7 +22,7 @@ if not os.getenv("OPENAI_API_KEY"):
     raise ValueError(f".env 文件路径: {env_path}, API Key未加载")
 
 # 定义场景类型
-ScenarioType = Literal["default", "code_gen", "vision", "agent"]
+ScenarioType = Literal["default", "code_gen", "agent"]
 
 
 class LLMClient:
@@ -131,7 +131,6 @@ class LLMClient:
             scenario: 使用场景
                 - "default": 默认场景
                 - "code_gen": 代码生成场景
-                - "vision": 视觉理解场景
                 - "agent": Agent场景
 
         Returns:
@@ -140,9 +139,6 @@ class LLMClient:
         Examples:
             >>> # 代码生成场景
             >>> llm = LLMClient.for_scenario("code_gen")
-            >>>
-            >>> # 视觉理解场景
-            >>> llm = LLMClient.for_scenario("vision")
         """
         # 从 settings 获取配置
         api_key = settings.openai_api_key
@@ -157,10 +153,6 @@ class LLMClient:
             "code_gen": {
                 "model": settings.code_gen_model,
                 "temperature": settings.code_gen_temperature
-            },
-            "vision": {
-                "model": settings.vision_model,
-                "temperature": settings.vision_temperature
             },
             "agent": {
                 "model": settings.agent_model,
@@ -266,64 +258,6 @@ class LLMClient:
 
         except Exception as e:
             logger.error(f"LLM调用失败: {e}")
-            raise
-
-    def vision_completion(
-        self,
-        prompt: str,
-        image_url: Optional[str] = None,
-        image_data: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
-    ) -> str:
-        """调用视觉理解API
-
-        Args:
-            prompt: 提示文本
-            image_url: 图片URL
-            image_data: Base64编码的图片数据
-            temperature: 温度参数
-            max_tokens: 最大token数
-
-        Returns:
-            模型响应文本
-        """
-        content = [{"type": "text", "text": prompt}]
-
-        if image_url:
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": image_url}
-            })
-        elif image_data:
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{image_data}"}
-            })
-
-        messages = [{"role": "user", "content": content}]
-
-        # 使用 LangChain 1.0 的 invoke 方法
-        try:
-            response = self.client.invoke(messages)
-            
-            # 从响应中提取 token 使用情况
-            if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
-                usage = response.response_metadata['token_usage']
-                prompt_tokens = usage.get('prompt_tokens', 0)
-                completion_tokens = usage.get('completion_tokens', 0)
-                
-                self.update_token_count(prompt_tokens, completion_tokens)
-            else:
-                # 估算（图片 token 通常较难准确估算，这里简化处理）
-                logger.warning("无法从响应中获取 token 使用信息，将进行估算")
-                input_tokens = self.count_tokens(prompt) + 1000  # 为图片预留固定 token
-                completion_tokens = self.count_tokens(response.content)
-                self.update_token_count(input_tokens, completion_tokens)
-            
-            return response.content
-        except Exception as e:
-            logger.error(f"视觉模型调用失败: {e}")
             raise
 
     @classmethod

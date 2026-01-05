@@ -146,7 +146,6 @@ output/swde_results/
 │   ├── amazon/
 │   │   ├── html_original/              # 原始HTML
 │   │   ├── html_simplified/            # 简化后HTML
-│   │   ├── screenshots/                # 网页截图
 │   │   ├── schemas/                    # Schema迭代过程
 │   │   ├── parsers/                    # 生成的解析器
 │   │   │   └── final_parser.py

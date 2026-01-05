@@ -71,6 +71,9 @@ class ParserAgent:
         if schema_mode:
             self.schema_mode = schema_mode
             self.executor.schema_mode = schema_mode
+            # 同时更新内部组件的schema_mode
+            self.executor.schema_processor.schema_mode = schema_mode
+            self.executor.schema_phase.schema_mode = schema_mode
 
         # 如果是预定义模式，加载schema模板
         if self.schema_mode == "predefined":
@@ -81,6 +84,8 @@ class ParserAgent:
                     logger.info(f"使用交互式输入的Schema模板")
                     self.schema_template = schema_template
                     self.executor.schema_template = self.schema_template
+                    # 同时更新内部组件的schema_template
+                    self.executor.schema_processor.schema_template = self.schema_template
                     logger.info(f"Schema模板包含字段: {list(self.schema_template.keys())}")
                 else:
                     # 从文件加载schema模板
@@ -92,6 +97,8 @@ class ParserAgent:
                     with open(template_path, 'r', encoding='utf-8') as f:
                         self.schema_template = json.load(f)
                     self.executor.schema_template = self.schema_template
+                    # 同时更新内部组件的schema_template
+                    self.executor.schema_processor.schema_template = self.schema_template
                     logger.info(f"Schema模板加载成功，包含字段: {list(self.schema_template.keys())}")
 
             if not self.schema_template:

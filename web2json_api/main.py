@@ -41,10 +41,11 @@ app.add_middleware(
 )
 
 # Import routers
-from web2json_api.routers import xpath
+from web2json_api.routers import xpath, parser
 
 # Register routers
 app.include_router(xpath.router, prefix="/api/xpath", tags=["xpath"])
+app.include_router(parser.router, prefix="/api/parser", tags=["parser"])
 
 
 @app.get("/")
@@ -98,5 +99,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
+        reload_excludes=["output/**", "logs/**", "*.log"],
         log_level="info"
     )

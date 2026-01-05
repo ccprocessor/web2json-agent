@@ -77,3 +77,14 @@ dmypy.json
 .pyre/
 /doc/
 tests/test_output/
+
+# Node.js (for web2json_ui/)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json.bak
+
+# Frontend build outputs
+web2json_ui/dist/

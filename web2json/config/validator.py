@@ -23,7 +23,6 @@ class ConfigValidator:
         "OPENAI_API_BASE": "API 基础 URL（默认: https://api.openai.com/v1）",
         "AGENT_MODEL": "Agent 使用的模型（默认: claude-sonnet-4-5-20250929）",
         "CODE_GEN_MODEL": "代码生成模型（默认: claude-sonnet-4-5-20250929）",
-        "VISION_MODEL": "视觉理解模型（默认: qwen-vl-max）",
     }
 
     @classmethod
@@ -109,7 +108,6 @@ class ConfigValidator:
             models_to_test = {
                 "Agent模型": os.getenv("AGENT_MODEL", "claude-sonnet-4-5-20250929"),
                 "代码生成模型": os.getenv("CODE_GEN_MODEL", "claude-sonnet-4-5-20250929"),
-                "视觉理解模型": os.getenv("VISION_MODEL", "qwen-vl-max"),
             }
 
             # 去重（避免重复测试相同模型）
@@ -227,18 +225,6 @@ AGENT_TEMPERATURE=0
 CODE_GEN_MODEL=claude-sonnet-4-5-20250929
 CODE_GEN_TEMPERATURE=0.3
 CODE_GEN_MAX_TOKENS=16384
-
-# 视觉理解（图片转JSON）
-VISION_MODEL=qwen-vl-max
-VISION_TEMPERATURE=0
-VISION_MAX_TOKENS=16384
-
-# ============================================
-# 浏览器配置（可选）
-# ============================================
-HEADLESS=true
-TIMEOUT=30000
-SCREENSHOT_FULL_PAGE=true
 
 # ============================================
 # HTML精简配置（可选）
