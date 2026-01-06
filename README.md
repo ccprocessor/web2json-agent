@@ -12,12 +12,7 @@
 
 ### 📋 视频演示
 
-<div align="center">
-  <a href="https://github.com/你的用户名/web2json-agent/releases">
-    <img src="docs/result_demo.jpg" alt="视频演示" width="80%">
-  </a>
-  <p><em>👆 点击图片观看完整演示视频</em></p>
-</div>
+https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
 
 ---
 
