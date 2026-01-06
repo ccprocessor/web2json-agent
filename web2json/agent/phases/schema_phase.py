@@ -21,7 +21,8 @@ class SchemaPhase(BasePhase):
         self,
         html_processor: HtmlProcessor,
         schema_processor: SchemaProcessor,
-        schema_mode: str = 'auto'
+        schema_mode: str = 'auto',
+        progress_callback=None
     ):
         """
         初始化 Schema 阶段管理器
@@ -30,10 +31,12 @@ class SchemaPhase(BasePhase):
             html_processor: HTML 处理器
             schema_processor: Schema 处理器
             schema_mode: Schema 模式 (auto/predefined)
+            progress_callback: 进度回调函数 callback(phase, step, percentage)
         """
         self.html_processor = html_processor
         self.schema_processor = schema_processor
         self.schema_mode = schema_mode
+        self.progress_callback = progress_callback
 
     def execute(self, html_files: List[str]) -> Dict[str, Any]:
         """
@@ -73,9 +76,18 @@ class SchemaPhase(BasePhase):
         logger.info(f"阶段1/3: 批量简化HTML文件")
         logger.info(f"{'═'*70}")
 
+        if self.progress_callback:
+            self.progress_callback("html_simplification", "开始简化HTML文件", 10)
+
         simplified_data_list = []
         for idx, html_file_path in enumerate(html_files, 1):
             logger.info(f"  正在精简 [{idx}/{len(html_files)}]: {Path(html_file_path).name}")
+
+            # 更新HTML简化进度：10-20%
+            if self.progress_callback:
+                progress = 10 + int((idx / len(html_files)) * 10)
+                self.progress_callback("html_simplification", f"简化HTML文件 {idx}/{len(html_files)}", progress)
+
             simplified_data = self.html_processor.process({
                 'html_file': html_file_path,
                 'idx': idx
@@ -93,6 +105,9 @@ class SchemaPhase(BasePhase):
 
         logger.success(f"✓ 已精简 {len(simplified_data_list)} 个HTML文件")
 
+        if self.progress_callback:
+            self.progress_callback("html_simplification", "HTML简化完成", 20)
+
         # ============ 步骤 2：并行提取/补充 Schema ============
         logger.info(f"\n{'═'*70}")
         if self.schema_mode == "auto":
@@ -101,9 +116,13 @@ class SchemaPhase(BasePhase):
             logger.info(f"阶段2/3: 并行补充 xpath（并发数: {min(settings.max_concurrent_extractions, len(simplified_data_list))}）")
         logger.info(f"{'═'*70}")
 
+        if self.progress_callback:
+            self.progress_callback("schema_extraction", "开始提取Schema", 20)
+
         schema_results = []
         # 使用配置的并发数，避免 API 限流
         max_workers = min(settings.max_concurrent_extractions, len(simplified_data_list))
+        completed_count = 0
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_data = {
                 executor.submit(
@@ -117,6 +136,12 @@ class SchemaPhase(BasePhase):
                 schema_result = future.result()
                 if schema_result['success']:
                     schema_results.append(schema_result)
+                    completed_count += 1
+
+                    # 更新Schema提取进度：20-30%
+                    if self.progress_callback:
+                        progress = 20 + int((completed_count / len(simplified_data_list)) * 10)
+                        self.progress_callback("schema_extraction", f"提取Schema {completed_count}/{len(simplified_data_list)}", progress)
 
         # 按 idx 排序
         schema_results.sort(key=lambda x: x['idx'])
@@ -160,6 +185,9 @@ class SchemaPhase(BasePhase):
             logger.info(f"阶段3/3: 合并 {len(all_schemas)} 个 Schema")
             logger.info(f"{'═'*70}")
 
+            if self.progress_callback:
+                self.progress_callback("schema_merge", "开始合并Schema", 30)
+
             try:
                 final_schema = self.schema_processor.merge_schemas(all_schemas)
 
@@ -168,6 +196,9 @@ class SchemaPhase(BasePhase):
                     self.schema_processor.schemas_dir / "final_schema.json"
                 )
                 result['success'] = True
+
+                if self.progress_callback:
+                    self.progress_callback("schema_merge", "Schema合并完成", 35)
 
             except Exception as e:
                 logger.error(f"合并多个Schema失败: {str(e)}")

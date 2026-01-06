@@ -132,29 +132,7 @@
       </div>
     </section>
 
-    <!-- 步骤3: 选择输出类型 -->
-    <section class="card">
-      <h2>🎯 {{ t('parserTab.step3') }}</h2>
-
-      <div class="output-type-selector">
-        <label class="output-option">
-          <input type="radio" v-model="outputType" value="structured_data" />
-          <div class="output-content">
-            <strong>{{ t('parserTab.structuredDataMode') }}</strong>
-            <span class="hint">{{ t('parserTab.structuredDataHint') }}</span>
-          </div>
-        </label>
-        <label class="output-option">
-          <input type="radio" v-model="outputType" value="xpath" />
-          <div class="output-content">
-            <strong>{{ t('parserTab.xpathMode') }}</strong>
-            <span class="hint">{{ t('parserTab.xpathHint') }}</span>
-          </div>
-        </label>
-      </div>
-    </section>
-
-    <!-- 步骤4: 生成按钮 -->
+    <!-- 步骤3: 生成按钮 -->
     <section class="card">
       <button
         @click="generateParser"
@@ -235,9 +213,6 @@
         <button @click="downloadZip" class="btn-download tertiary">
           📦 {{ t('parserTab.downloadZip') }}
         </button>
-        <button @click="checkStatus" class="btn-download debug">
-          🔍 Debug Status
-        </button>
       </div>
 
       <!-- 预览表格 -->
@@ -279,11 +254,10 @@ import { parserAPI } from '../api/parser.js'
 const { t } = useI18n()
 
 // State
-const inputMode = ref('html')
+const inputMode = ref('file')  // 默认为文件上传模式
 const uploadedFiles = ref([])
 const htmlContents = ref([''])
 const schemaMode = ref('predefined')
-const outputType = ref('structured_data')
 const fields = ref([{ name: '', description: '', field_type: 'string' }])
 const loading = ref(false)
 const error = ref('')
@@ -1080,51 +1054,6 @@ onUnmounted(() => {
   color: #667eea;
 }
 
-/* 输出类型选择 */
-.output-type-selector {
-  display: flex;
-  flex-direction: row;
-  gap: 15px;
-  margin: 15px 0;
-}
-
-.output-option {
-  display: flex;
-  flex: 1;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 15px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.output-option:hover {
-  border-color: #667eea;
-  background: #f8f9ff;
-}
-
-.output-option input[type="radio"] {
-  margin-top: 3px;
-}
-
-.output-content {
-  flex: 1;
-}
-
-.output-content strong {
-  display: block;
-  color: #333;
-  margin-bottom: 5px;
-}
-
-.output-content .hint {
-  display: block;
-  color: #666;
-  font-size: 0.9rem;
-}
-
 /* 进度部分 */
 .progress-section {
   background: #f0f9ff;
@@ -1420,10 +1349,6 @@ onUnmounted(() => {
   }
 
   .schema-mode-selector {
-    flex-direction: column;
-  }
-
-  .output-type-selector {
     flex-direction: column;
   }
 

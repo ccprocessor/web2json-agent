@@ -81,13 +81,17 @@ class ParserService:
             # 阶段2-4: 执行解析器生成
             await self._update_progress(task_id, "schema_iteration", "Starting parser generation", 10, 0)
 
+            # 获取当前事件循环（在主异步线程中）
+            loop = asyncio.get_running_loop()
+
             # 在同步线程中执行ParserAgent（因为它是同步的）
             result = await asyncio.to_thread(
                 self._run_parser_agent,
                 agent,
                 html_files,
                 request,
-                task_id
+                task_id,
+                loop  # 传递事件循环给子线程
             )
 
             # 阶段5: 完成 (100%)
@@ -128,7 +132,8 @@ class ParserService:
         agent: ParserAgent,
         html_files: List[str],
         request: ParserGenerateRequest,
-        task_id: str
+        task_id: str,
+        loop  # 从主线程传入的事件循环
     ) -> Dict:
         """
         在同步线程中运行ParserAgent
@@ -144,6 +149,30 @@ class ParserService:
         """
         try:
             logger.info(f"开始执行ParserAgent，处理 {len(html_files)} 个HTML文件")
+
+            # 定义进度回调函数（同步调用）
+            def progress_callback(phase: str, step: str, percentage: int):
+                """进度回调 - 在同步线程中调用"""
+                try:
+                    # 使用传入的事件循环（从主线程获取）
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.task_manager.broadcast_progress(
+                            task_id,
+                            phase=phase,
+                            step=step,
+                            percentage=percentage,
+                            eta_seconds=0
+                        ),
+                        loop
+                    )
+                    # 等待完成（带超时）
+                    future.result(timeout=1.0)
+                except Exception as e:
+                    logger.warning(f"进度回调失败: {e}")
+
+            # 更新 agent 的回调函数
+            agent.progress_callback = progress_callback
+            agent.executor.progress_callback = progress_callback
 
             # 调用ParserAgent的generate_parser方法
             result = agent.generate_parser(

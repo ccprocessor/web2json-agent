@@ -5,7 +5,7 @@ export default {
   },
   step1: {
     title: '📄 步骤 1: 输入 HTML 样本',
-    hint: '💡 提示：提供 2-5 个相似页面以获得更准确的解析效果',
+    hint: '💡 提示：建议输入 3 个以上相似页面以获得更准确的解析效果',
     uploadFiles: '📁 上传文件',
     htmlSource: '📝 HTML 源码',
     selectFiles: '选择文件',

@@ -19,7 +19,7 @@ from .phases import SchemaPhase, CodePhase
 class AgentExecutor:
     """Agent 执行器 - 负责阶段编排"""
 
-    def __init__(self, output_dir: str = "output", schema_mode: str = "auto", schema_template: Dict = None):
+    def __init__(self, output_dir: str = "output", schema_mode: str = "auto", schema_template: Dict = None, progress_callback=None):
         """
         初始化执行器
 
@@ -27,11 +27,13 @@ class AgentExecutor:
             output_dir: 输出目录
             schema_mode: Schema模式 (auto: 自动提取, predefined: 使用预定义模板)
             schema_template: 预定义的Schema模板（当schema_mode=predefined时使用）
+            progress_callback: 进度回调函数 callback(phase, step, percentage)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.schema_mode = schema_mode
         self.schema_template = schema_template
+        self.progress_callback = progress_callback
 
         # 创建子目录
         self._setup_directories()
@@ -92,11 +94,13 @@ class AgentExecutor:
             html_processor=self.html_processor,
             schema_processor=self.schema_processor,
             schema_mode=self.schema_mode,
+            progress_callback=self.progress_callback,
         )
 
         self.code_phase = CodePhase(
             code_processor=self.code_processor,
             output_dir=self.output_dir,
+            progress_callback=self.progress_callback,
         )
 
     def execute_plan(self, plan: Dict) -> Dict:

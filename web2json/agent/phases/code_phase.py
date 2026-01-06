@@ -16,16 +16,18 @@ from .base_phase import BasePhase
 class CodePhase(BasePhase):
     """代码迭代阶段管理器"""
 
-    def __init__(self, code_processor: CodeProcessor, output_dir: Path):
+    def __init__(self, code_processor: CodeProcessor, output_dir: Path, progress_callback=None):
         """
         初始化代码阶段管理器
 
         Args:
             code_processor: 代码处理器
             output_dir: 输出目录
+            progress_callback: 进度回调函数 callback(phase, step, percentage)
         """
         self.code_processor = code_processor
         self.output_dir = output_dir
+        self.progress_callback = progress_callback
 
     def execute(
         self,
@@ -71,6 +73,7 @@ class CodePhase(BasePhase):
         current_parser_path = None
 
         # 使用 Schema 阶段的轮次数据
+        total_rounds = len(schema_phase_rounds)
         for idx, schema_round in enumerate(schema_phase_rounds, 1):
             if not schema_round.get('success'):
                 logger.warning(f"Schema阶段第 {idx} 轮失败，跳过代码生成")
@@ -79,6 +82,13 @@ class CodePhase(BasePhase):
             logger.info(f"\n{'─'*70}")
             logger.info(f"代码迭代 - 第 {idx}/{len(schema_phase_rounds)} 轮")
             logger.info(f"{'─'*70}")
+
+            # 更新代码迭代进度：35-80%，每轮分配15%
+            if self.progress_callback:
+                base_progress = 35
+                progress_per_round = 15
+                start_progress = base_progress + (idx - 1) * progress_per_round
+                self.progress_callback("code_iteration", f"代码迭代第 {idx}/{total_rounds} 轮", start_progress)
 
             try:
                 # 复用 Schema 阶段的 HTML（精简后的）
@@ -128,6 +138,11 @@ class CodePhase(BasePhase):
                 result['parsers'].append(code_result)
                 logger.success(f"代码迭代第 {idx} 轮完成")
 
+                # 更新完成进度
+                if self.progress_callback:
+                    end_progress = base_progress + idx * progress_per_round
+                    self.progress_callback("code_iteration", f"代码迭代第 {idx}/{total_rounds} 轮完成", end_progress)
+
             except Exception as e:
                 logger.error(f"代码迭代第 {idx} 轮失败: {str(e)}")
                 import traceback
@@ -161,6 +176,9 @@ class CodePhase(BasePhase):
                 logger.info("提取最优XPath表达式...")
                 logger.info("="*70)
 
+                if self.progress_callback:
+                    self.progress_callback("xpath_extraction", "提取最优XPath表达式", 80)
+
                 xpath_extractor = XPathExtractor()
                 xpath_output_path = self.output_dir / "parsers" / "xpaths.json"
 
@@ -172,6 +190,9 @@ class CodePhase(BasePhase):
                 if success:
                     logger.success(f"XPath提取完成: {xpath_output_path}")
                     result['xpath_file'] = str(xpath_output_path)
+
+                    if self.progress_callback:
+                        self.progress_callback("xpath_extraction", "XPath提取完成", 85)
                 else:
                     logger.warning("XPath提取失败，但不影响解析器使用")
 

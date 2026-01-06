@@ -18,7 +18,7 @@ class ParserAgent:
     通过给定一组HTML文件，自动生成能够解析这些页面的Python代码
     """
 
-    def __init__(self, output_dir: str = "output", schema_mode: str = None, schema_template: Dict = None):
+    def __init__(self, output_dir: str = "output", schema_mode: str = None, schema_template: Dict = None, progress_callback=None):
         """
         初始化Agent
 
@@ -26,14 +26,17 @@ class ParserAgent:
             output_dir: 输出目录
             schema_mode: Schema模式 (auto: 自动提取, predefined: 使用预定义模板)
             schema_template: 预定义的Schema模板（当schema_mode=predefined时使用）
+            progress_callback: 进度回调函数 callback(phase, step, percentage)
         """
         self.planner = AgentPlanner()
         self.schema_mode = schema_mode or settings.schema_mode
         self.schema_template = schema_template
+        self.progress_callback = progress_callback
         self.executor = AgentExecutor(
             output_dir=output_dir,
             schema_mode=self.schema_mode,
-            schema_template=self.schema_template
+            schema_template=self.schema_template,
+            progress_callback=progress_callback
         )
         self.output_dir = Path(output_dir)
 
@@ -109,10 +112,14 @@ class ParserAgent:
 
         # 第一步：规划
         logger.info("\n[步骤 1/4] 任务规划")
+        if self.progress_callback:
+            self.progress_callback("planning", "创建执行计划", 5)
         plan = self.planner.create_plan(html_files, domain, iteration_rounds)
 
         # 第二步：执行（两阶段迭代）
         logger.info("\n[步骤 2/4] 执行计划 - 两阶段迭代")
+        if self.progress_callback:
+            self.progress_callback("execution", "开始两阶段迭代", 10)
         execution_result = self.executor.execute_plan(plan)
 
         if not execution_result['success']:
@@ -125,6 +132,8 @@ class ParserAgent:
 
         # 第三步：批量解析所有HTML文件
         logger.info("\n[步骤 3/4] 批量解析所有HTML文件")
+        if self.progress_callback:
+            self.progress_callback("batch_parsing", "开始批量解析HTML文件", 85)
         parser_path = execution_result['final_parser']['parser_path']
         all_html_files = plan['all_html_files']
 
@@ -135,6 +144,8 @@ class ParserAgent:
 
         # 第四步：总结
         logger.info("\n[步骤 4/4] 生成总结")
+        if self.progress_callback:
+            self.progress_callback("summary", "生成执行总结", 98)
         summary = self._generate_summary(execution_result, parse_result)
 
         return {
