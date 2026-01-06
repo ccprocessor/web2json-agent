@@ -12,10 +12,7 @@
 
 ### 📋 视频演示
 
-<video width="100%" controls>
-  <source src="docs/20260106150225.mp4" type="video/mp4">
-  您的浏览器不支持视频播放。
-</video>
+Uploading 20260106150225.mp4…
 
 ---
 
