@@ -22,7 +22,9 @@ fi
 # 启动后端
 echo "📡 Starting backend API (port 8000)..."
 cd /Users/brown/Projects/AILabProject/web2json-agent
-uvicorn web2json_api.main:app --host 0.0.0.0 --port 8000 > logs/api.log 2>&1 &
+# 生产模式：禁用自动重载，避免 output 目录变化触发重启
+uvicorn web2json_api.main:app --host 0.0.0.0 --port 8000 \
+  > logs/api.log 2>&1 &
 BACKEND_PID=$!
 echo "   Backend PID: $BACKEND_PID"
 
