@@ -48,7 +48,7 @@ web2json -d html_samples/ -o output/result --interactive-schema
 ```
 
 ---
-## 🎨 Web UI Frontend Interface
+## 🎨 Web UI
 
 The project provides a visual Web UI interface for convenient browser-based operations.
 
