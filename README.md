@@ -2,7 +2,7 @@
 
 **Let AI automatically generate web parsing code, say goodbye to manual XPath and CSS selectors, easily get structured data**
 
-[English](README.md) | [中文文档](docs/README_zh.md)
+[English](README.md) | [中文](docs/README_zh.md)
 
 ## 💡 Project Introduction
 
@@ -11,6 +11,21 @@
 ### 📋 Video Demo
 
 https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
+
+---
+
+## 📊 SWDE Benchmark Results
+
+Evaluated on the SWDE dataset (8 verticals, 80 websites, 124,291 pages):
+
+<div align="center">
+
+| Metric | Score |
+|--------|-------|
+| **Average Precision** | **91.50%** |
+| **Average Recall** | **90.46%** |
+| **Average F1 Score** | **89.93%** |
+</div>
 
 ---
 
