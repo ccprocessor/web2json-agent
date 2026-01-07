@@ -4,11 +4,7 @@
 
 [English](README.md) | [中文](docs/README_zh.md)
 
-## 💡 Project Introduction
-
-**web2json-agent** is an intelligent data parsing tool that can **automatically analyze web page structure and generate high-quality Python parser code with automatic data parsing, saving 80% of development time, from hours to minutes!**
-
-### 📋 Video Demo
+## 📋 Demo
 
 https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
 
