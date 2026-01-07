@@ -89,5 +89,24 @@ export default {
     showing10Rows: '显示前 10 行，共 {total} 行',
     moreRows: '...还有 {count} 行（请下载文件查看全部）',
     moreResults: '...还有 {count} 个文件（请下载 ZIP 查看全部）'
+  },
+  configModal: {
+    title: 'API 配置',
+    apiKeyPlaceholder: '请输入 API Key',
+    apiKeyHint: 'OpenAI 或兼容的 API 密钥',
+    apiBasePlaceholder: 'https://api.openai.com/v1',
+    apiBaseHint: 'API 服务的基础 URL',
+    iterationRounds: '迭代学习样本数',
+    iterationRoundsPlaceholder: '3',
+    iterationRoundsHint: '用于学习的 HTML 样本数量（默认 3 个）',
+    save: '保存',
+    saving: '保存中...',
+    cancel: '取消',
+    saveSuccess: '保存成功！',
+    saveFailed: '保存失败',
+    noChanges: '没有修改',
+    copy: '复制',
+    copied: '已复制！',
+    copyFailed: '复制失败'
   }
 }

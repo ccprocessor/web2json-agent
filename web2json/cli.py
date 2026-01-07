@@ -180,6 +180,14 @@ def cmd_check(args):
 
 def cmd_generate(args):
     """生成解析器（主功能）"""
+    # 检查必需的目录参数
+    if not args.directory:
+        print("\n❌ 错误: 缺少必需的参数 -d/--directory")
+        print("\n使用方法:")
+        print("  web2json -d input_html/ -o output/blog")
+        print("\n运行 'web2json --help' 查看完整帮助")
+        sys.exit(1)
+
     # 在执行主功能前检查配置
     if not args.skip_config_check:
         check_config_or_guide()
@@ -325,7 +333,6 @@ def main():
     # 主命令参数（生成解析器）
     parser.add_argument(
         '-d', '--directory',
-        required=True,
         help='HTML文件目录路径'
     )
     parser.add_argument(

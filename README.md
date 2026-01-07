@@ -1,38 +1,61 @@
 # web2json-agent
 
-**让 AI 自动生成网页解析代码，告别手写 XPath 和 CSS 选择器，轻松得到结构化数据**
+**Let AI automatically generate web parsing code, say goodbye to manual XPath and CSS selectors, easily get structured data**
 
-## 💡 项目简介
+[English](README.md) | [中文文档](docs/README_zh.md)
 
-**web2json-agent** 是一个智能数据结构化解析工具，能够**自动分析网页结构并生成高质量的 Python 解析代码，并自动进行数据解析，节省 80% 的开发时间，从几小时到几分钟！**
+## 💡 Project Introduction
 
-### 📋 视频演示
+**web2json-agent** is an intelligent data parsing tool that can **automatically analyze web page structure and generate high-quality Python parser code with automatic data parsing, saving 80% of development time, from hours to minutes!**
+
+### 📋 Video Demo
 
 https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 通过 pip 安装
+### Install via pip
 
 ```bash
-# 1. 安装包
+# 1. Install package
 pip install web2json-agent
 
-# 2. 初始化配置
+# 2. Initialize configuration
 web2json setup
 
-# 模式1：自动模式 (auto) - 快速探索，不确定需要提取哪些字段
+# Mode 1: Auto mode (auto) - Quick exploration, unsure which fields to extract
 web2json -d html_samples/ -o output/result
 
-# 模式2：预定义模式 (predefined) - 明确知道需要提取哪些字段，需要精确控制输出结构
+# Mode 2: Predefined mode (predefined) - Know exactly which fields to extract, need precise output control
 web2json -d html_samples/ -o output/result --interactive-schema
 ```
 
 ---
+## 🎨 Web UI Frontend Interface
 
-## 📄 许可证
+The project provides a visual Web UI interface for convenient browser-based operations.
+
+### Installation and Launch
+
+```bash
+# Enter frontend directory
+cd web2json_ui/
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Or build production version
+npm run build
+```
+
+---
+
+## 📄 License
 
 MIT License
 

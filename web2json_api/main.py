@@ -41,11 +41,12 @@ app.add_middleware(
 )
 
 # Import routers
-from web2json_api.routers import xpath, parser
+from web2json_api.routers import xpath, parser, config
 
 # Register routers
 app.include_router(xpath.router, prefix="/api/xpath", tags=["xpath"])
 app.include_router(parser.router, prefix="/api/parser", tags=["parser"])
+app.include_router(config.router, prefix="/api", tags=["config"])
 
 
 @app.get("/")
