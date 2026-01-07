@@ -97,6 +97,10 @@ class SWDEEvaluationRunner:
         # Global summary file path
         self.global_summary_file = self.output_root / "summary.json"
 
+        # Clean previous evaluation results if not in resume mode
+        if not self.resume:
+            self._clean_evaluation_results()
+
         # Load or initialize global summary
         self.global_summary = self._load_global_summary()
 
@@ -105,6 +109,73 @@ class SWDEEvaluationRunner:
         self.schema_paths = {}
         if self.use_predefined_schema:
             self._initialize_schemas()
+
+    def _clean_evaluation_results(self) -> None:
+        """
+        Clean all previous evaluation results.
+        This includes:
+        - Global summary.json
+        - All evaluation/ directories in vertical/website folders
+        - Vertical _summary/ directories
+        - Integrated error reports
+
+        Note: This preserves agent outputs (result/, parsers/, schemas/, etc.)
+        """
+        import shutil
+
+        print("\n" + "="*80)
+        print("🧹 Cleaning Previous Evaluation Results")
+        print("="*80)
+
+        cleaned_items = []
+
+        # 1. Remove global summary.json
+        if self.global_summary_file.exists():
+            self.global_summary_file.unlink()
+            cleaned_items.append(f"  ✓ Removed: {self.global_summary_file.name}")
+
+        # 2. Remove integrated error reports
+        integrated_report = self.output_root / "integrated_error_report.html"
+        if integrated_report.exists():
+            integrated_report.unlink()
+            cleaned_items.append(f"  ✓ Removed: {integrated_report.name}")
+
+        # 3. Traverse vertical directories and clean evaluation results
+        for vertical_dir in self.output_root.iterdir():
+            if not vertical_dir.is_dir():
+                continue
+
+            vertical_name = vertical_dir.name
+
+            # Skip special directories
+            if vertical_name.startswith('_') or vertical_name not in VERTICALS:
+                continue
+
+            # Remove vertical summary
+            summary_dir = vertical_dir / "_summary"
+            if summary_dir.exists():
+                shutil.rmtree(summary_dir)
+                cleaned_items.append(f"  ✓ Removed: {vertical_name}/_summary/")
+
+            # Clean each website's evaluation directory
+            for website_dir in vertical_dir.iterdir():
+                if not website_dir.is_dir() or website_dir.name.startswith('_'):
+                    continue
+
+                eval_dir = website_dir / "evaluation"
+                if eval_dir.exists():
+                    shutil.rmtree(eval_dir)
+                    cleaned_items.append(f"  ✓ Removed: {vertical_name}/{website_dir.name}/evaluation/")
+
+        if cleaned_items:
+            print("\nCleaned evaluation results:")
+            for item in cleaned_items:
+                print(item)
+            print(f"\nTotal items cleaned: {len(cleaned_items)}")
+        else:
+            print("  ℹ No previous evaluation results found")
+
+        print("="*80 + "\n")
 
     def _initialize_schemas(self) -> None:
         """Initialize schema generator and generate schema templates."""

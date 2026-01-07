@@ -224,12 +224,25 @@ class SWDEEvaluator:
             metrics = self.metrics_computer.compute_field_metrics(extracted_values, gt_values)
             field_metrics[attribute] = metrics
 
+            # Determine if this is a match
+            # Special case: Both GT and extracted are empty (all None/dash/N/A indicators)
+            # This is a perfect match, not an error
+            from evaluation.metrics import ExtractionMetrics
+            is_both_empty = all(
+                ExtractionMetrics.normalize_value(v) in ["none", "", "null", "na", "notfound"] or
+                v in [None, "-", "N/A", "n/a", "(not found in JSON)"]
+                for v in gt_values + extracted_values
+            ) if (gt_values or extracted_values) else False
+
+            # Match if: (1) has true positives, OR (2) both are empty indicators
+            is_match = (metrics['true_positives'] > 0) or is_both_empty
+
             # Store details (include both raw and matched values)
             field_details[attribute] = {
                 'groundtruth': gt_values,
                 'extracted': extracted_values,  # Values that matched groundtruth
                 'raw_extracted': raw_extracted,  # Raw values from JSON (by key)
-                'match': metrics['true_positives'] > 0
+                'match': is_match
             }
 
         return {
