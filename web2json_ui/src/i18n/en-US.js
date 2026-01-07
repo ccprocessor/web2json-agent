@@ -89,5 +89,24 @@ export default {
     showing10Rows: 'Showing first 10 rows of {total} total',
     moreRows: '... and {count} more rows (download file to view all)',
     moreResults: '... and {count} more files (download ZIP to view all)'
+  },
+  configModal: {
+    title: 'API Configuration',
+    apiKeyPlaceholder: 'Enter your API Key',
+    apiKeyHint: 'OpenAI or compatible API key',
+    apiBasePlaceholder: 'https://api.openai.com/v1',
+    apiBaseHint: 'Base URL for the API service',
+    iterationRounds: 'Iteration Learning Samples',
+    iterationRoundsPlaceholder: '3',
+    iterationRoundsHint: 'Number of HTML samples for learning (default: 3)',
+    save: 'Save',
+    saving: 'Saving...',
+    cancel: 'Cancel',
+    saveSuccess: 'Saved successfully!',
+    saveFailed: 'Failed to save',
+    noChanges: 'No changes made',
+    copy: 'Copy',
+    copied: 'Copied!',
+    copyFailed: 'Failed to copy'
   }
 }

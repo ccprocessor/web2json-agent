@@ -4,6 +4,9 @@
       <button @click="toggleLocale" class="language-toggle" :title="locale === 'zh-CN' ? 'Switch to English' : '切换到中文'">
         {{ locale === 'zh-CN' ? '🌐 EN' : '🌐 中文' }}
       </button>
+      <button @click="showConfigModal = true" class="settings-button" :title="locale === 'zh-CN' ? 'Settings' : '设置'">
+        ⚙️ {{ locale === 'zh-CN' ? 'Settings' : '设置' }}
+      </button>
       <h1>{{ t('header.title') }}</h1>
       <p>{{ t('header.subtitle') }}</p>
     </header>
@@ -12,15 +15,28 @@
       <!-- Parser Generation -->
       <ParserTab />
     </main>
+
+    <!-- Config Modal -->
+    <ConfigModal :show="showConfigModal" @close="showConfigModal = false" @updated="handleConfigUpdated" />
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useI18n } from './i18n/index.js'
 import ParserTab from './components/ParserTab.vue'
+import ConfigModal from './components/ConfigModal.vue'
 
 // i18n
 const { locale, t, toggleLocale } = useI18n()
+
+// Config modal state
+const showConfigModal = ref(false)
+
+// Handle config updated
+function handleConfigUpdated() {
+  console.log('Config updated successfully')
+}
 </script>
 
 <style scoped>
@@ -41,7 +57,7 @@ const { locale, t, toggleLocale } = useI18n()
 .language-toggle {
   position: absolute;
   top: 20px;
-  right: 20px;
+  right: 180px;
   padding: 10px 20px;
   background: rgba(255, 255, 255, 0.2);
   color: white;
@@ -55,6 +71,28 @@ const { locale, t, toggleLocale } = useI18n()
 }
 
 .language-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.8);
+  transform: scale(1.05);
+}
+
+.settings-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s;
+  backdrop-filter: blur(10px);
+}
+
+.settings-button:hover {
   background: rgba(255, 255, 255, 0.3);
   border-color: rgba(255, 255, 255, 0.8);
   transform: scale(1.05);
@@ -488,6 +526,13 @@ const { locale, t, toggleLocale } = useI18n()
 
   .language-toggle {
     top: 10px;
+    right: 10px;
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+
+  .settings-button {
+    top: 60px;
     right: 10px;
     padding: 8px 16px;
     font-size: 12px;
