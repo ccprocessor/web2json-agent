@@ -215,20 +215,25 @@ class ExtractionMetrics:
                 'groundtruth_count': 0
             }
 
-        # Count matches using value_match logic
-        matched_gt_indices = set()  # Track which GT values have been matched
-        matched_pred_indices = set()  # Track which pred values have matched something
+        # Count matches using value_match logic with greedy one-to-one matching
+        # Each pred can match at most one GT, and each GT can be matched by at most one pred
+        matched_gt_indices = set()
+        matched_pred_indices = set()
 
-        for i, gt_val in enumerate(gt_list):
-            for j, pred_val in enumerate(pred_list):
-                if ExtractionMetrics.value_match(pred_val, gt_val):
-                    matched_gt_indices.add(i)
-                    matched_pred_indices.add(j)
+        # Greedy matching: for each pred, find the first unmatched GT it matches
+        for j, pred_val in enumerate(pred_list):
+            for i, gt_val in enumerate(gt_list):
+                if i not in matched_gt_indices:  # GT not yet matched
+                    if ExtractionMetrics.value_match(pred_val, gt_val):
+                        matched_gt_indices.add(i)
+                        matched_pred_indices.add(j)
+                        break  # Move to next pred after successful match
 
         # Calculate TP, FP, FN
-        tp = len(matched_gt_indices)  # Number of GT values that were matched
-        fn = len(gt_list) - tp  # Number of GT values that were not matched
-        fp = len(pred_list) - len(matched_pred_indices)  # Number of pred values that matched nothing
+        # TP = number of successful pairings (matched pred count = matched GT count)
+        tp = len(matched_pred_indices)
+        fp = len(pred_list) - tp  # Unmatched pred values
+        fn = len(gt_list) - len(matched_gt_indices)  # Unmatched GT values
 
         # Calculate metrics
         precision = (tp + 1e-12) / (tp + fp + 1e-12)
