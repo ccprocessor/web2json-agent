@@ -281,6 +281,23 @@ class ExtractionMetrics:
         total_extracted = sum(m['extracted_count'] for m in metrics_list)
         total_groundtruth = sum(m['groundtruth_count'] for m in metrics_list)
 
+        # Special case: All pages are empty value matches (both GT and extracted are empty)
+        # This happens when: tp=0, fp=0, fn=0, extracted=0, groundtruth=0 for all pages
+        # In this case, it's a perfect match (100%), not an error (0%)
+        if total_extracted == 0 and total_groundtruth == 0 and total_tp == 0 and total_fp == 0 and total_fn == 0:
+            # All pages had empty GT and empty extracted - perfect match
+            return {
+                'precision': 1.0,
+                'recall': 1.0,
+                'f1': 1.0,
+                'total_true_positives': 0,
+                'total_false_positives': 0,
+                'total_false_negatives': 0,
+                'total_extracted': 0,
+                'total_groundtruth': 0,
+                'page_count': len(metrics_list)
+            }
+
         # Micro-averaged metrics
         precision = total_tp / total_extracted if total_extracted > 0 else 0.0
         recall = total_tp / total_groundtruth if total_groundtruth > 0 else 0.0
