@@ -6,7 +6,9 @@
 
 ## 📋 Demo
 
-https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
+
+https://github.com/user-attachments/assets/6eec23d4-5bf1-4837-af70-6f0a984d5464
+
 
 ---
 
@@ -15,12 +17,14 @@ https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
 Evaluated on the SWDE dataset (8 verticals, 80 websites, 124,291 pages):
 
 <div align="center">
+    
+| Metric |Precision|Recall|F1 Score|
+|--------|-------|-------|------|
+|COT| 87.75 | 79.90 |76.95 |
+|Reflexion| **93.28** | 82.76 |82.40 |
+|AUTOSCRAPER| 92.49 | 89.13 |88.69 |
+| Web2JSON-Agent | 91.50 | **90.46** |**89.93** |
 
-| Metric | Score |
-|--------|-------|
-| **Average Precision** | **91.50%** |
-| **Average Recall** | **90.46%** |
-| **Average F1 Score** | **89.93%** |
 </div>
 
 ---
