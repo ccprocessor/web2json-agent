@@ -18,7 +18,7 @@ Evaluated on the SWDE dataset (8 verticals, 80 websites, 124,291 pages):
 
 <div align="center">
     
-| Metric |Precision|Recall|F1 Score|
+| |Precision|Recall|F1 Score|
 |--------|-------|-------|------|
 |COT| 87.75 | 79.90 |76.95 |
 |Reflexion| **93.28** | 82.76 |82.40 |
