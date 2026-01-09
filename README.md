@@ -39,11 +39,29 @@ pip install web2json-agent
 
 # 2. Initialize configuration
 web2json setup
+```
 
-# Mode 1: Auto mode (auto) - Quick exploration, unsure which fields to extract
+### Install for Developers
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/ccprocessor/web2json-agent
+cd web2json-agent
+
+# 2. Install in editable mode
+pip install -e .
+
+# 3. Initialize configuration
+web2json setup
+```
+
+### Usage instructions
+
+```bash
+# Mode 1: Auto mode (Automatically select the fields to be extracted)
 web2json -d html_samples/ -o output/result
 
-# Mode 2: Predefined mode (predefined) - Know exactly which fields to extract, need precise output control
+# Mode 2: Predefined mode (Specify the fields to be extracted)
 web2json -d html_samples/ -o output/result --interactive-schema
 ```
 
