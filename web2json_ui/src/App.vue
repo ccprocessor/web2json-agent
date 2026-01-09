@@ -4,8 +4,8 @@
       <button @click="toggleLocale" class="language-toggle" :title="locale === 'zh-CN' ? 'Switch to English' : '切换到中文'">
         {{ locale === 'zh-CN' ? '🌐 EN' : '🌐 中文' }}
       </button>
-      <button @click="showConfigModal = true" class="settings-button" :title="locale === 'zh-CN' ? 'Settings' : '设置'">
-        ⚙️ {{ locale === 'zh-CN' ? 'Settings' : '设置' }}
+      <button @click="showConfigModal = true" class="settings-button" :title="locale === 'zh-CN' ? '设置' : 'Settings'">
+        ⚙️ {{ locale === 'zh-CN' ? '设置' : 'Settings' }}
       </button>
       <h1>{{ t('header.title') }}</h1>
       <p>{{ t('header.subtitle') }}</p>
