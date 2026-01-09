@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "web2json-agent"
-version = "1.1.0"
-description = "智能网页解析代码生成器 - 基于 AI 自动生成网页解析代码"
+version = "1.1.2"
+description = "Web Structured Data Extraction Agent"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
