@@ -1,14 +1,21 @@
-# web2json-agent
+<div align="center">
 
-**让 AI 自动生成网页解析代码，告别手写 XPath 和 CSS 选择器，轻松得到结构化数据**
+# 🌐 web2json-agent
 
-[中文](docs/README_zh.md) | [English](../README.md)
+**告别爬虫开发，秒级获取网页数据**
 
-## 💡 项目简介
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![LangChain](https://img.shields.io/badge/LangChain-1.0+-00C851?style=for-the-badge&logo=chainlink&logoColor=white)](https://www.langchain.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-Compatible-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
+[![License](https://img.shields.io/badge/License-Apache--2.0-orange?style=for-the-badge)](../LICENSE)
+[![PyPI](https://img.shields.io/badge/PyPI-1.1.2-blue?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/web2json-agent/)
 
-**web2json-agent** 是一个智能数据结构化解析工具，能够**自动分析网页结构并生成高质量的 Python 解析代码，并自动进行数据解析，节省 90% 的开发时间，从几小时到几分钟！**
+[English](../README.md) | [中文](README_zh.md)
 
-### 📋 视频演示
+</div>
+
+
+## 📋 视频演示
 
 https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
 
@@ -16,7 +23,7 @@ https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
 
 ## 📊 SWDE 基准测试结果
 
-在 SWDE 数据集上的测评结果（8 个垂直领域，80 个网站，124,291 页面）：
+SWDE 数据集涵盖 8 个垂直领域，80 个网站，124,291 页面
 
 <div align="center">
 
@@ -68,6 +75,7 @@ web2json -d html_samples/ -o output/result --interactive-schema
 ```
 
 ---
+
 ## 🎨 Web UI 界面
 
 项目提供了一个可视化的 Web UI 界面，方便在浏览器中操作。
@@ -92,6 +100,14 @@ npm run build
 
 ## 📄 许可证
 
-Apache-2.0 license
+Apache-2.0 License
 
 ---
+
+<div align="center">
+
+**用 ❤️ 打造 by web2json-agent 团队**
+
+[⭐ GitHub 点个 Star](https://github.com/ccprocessor/web2json-agent) | [🐛 报告问题](https://github.com/ccprocessor/web2json-agent/issues) | [📖 文档](https://github.com/ccprocessor/web2json-agent)
+
+</div>

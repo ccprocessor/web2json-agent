@@ -8,7 +8,7 @@ version = "1.1.2"
 description = "Web Structured Data Extraction Agent"
 readme = "README.md"
 requires-python = ">=3.12"
-license = {text = "MIT"}
+license = "Apache-2.0"
 authors = [
     {name = "YangGuoqiang", email = "1041206149@qq.com"}
 ]

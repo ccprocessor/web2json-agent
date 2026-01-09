@@ -1,8 +1,20 @@
-# web2json-agent
+<div align="center">
 
-**Let AI automatically generate web parsing code, say goodbye to manual XPath and CSS selectors, easily get structured data**
+# 🌐 web2json-agent
+
+**Stop Coding Scrapers, Start Getting Data — from Hours to Seconds**
+
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![LangChain](https://img.shields.io/badge/LangChain-1.0+-00C851?style=for-the-badge&logo=chainlink&logoColor=white)](https://www.langchain.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-Compatible-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
+[![License](https://img.shields.io/badge/License-Apache--2.0-orange?style=for-the-badge)](LICENSE)
+[![PyPI](https://img.shields.io/badge/PyPI-1.1.2-blue?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/web2json-agent/)
 
 [English](README.md) | [中文](docs/README_zh.md)
+
+</div>
+
+---
 
 ## 📋 Demo
 
@@ -14,10 +26,10 @@ https://github.com/user-attachments/assets/6eec23d4-5bf1-4837-af70-6f0a984d5464
 
 ## 📊 SWDE Benchmark Results
 
-Evaluated on the SWDE dataset (8 verticals, 80 websites, 124,291 pages):
+The SWDE dataset covers 8 vertical fields, 80 websites, and 124,291 pages
 
 <div align="center">
-    
+
 | |Precision|Recall|F1 Score|
 |--------|-------|-------|------|
 |COT| 87.75 | 79.90 |76.95 |
@@ -66,6 +78,7 @@ web2json -d html_samples/ -o output/result --interactive-schema
 ```
 
 ---
+
 ## 🎨 Web UI
 
 The project provides a visual Web UI interface for convenient browser-based operations.
@@ -90,6 +103,14 @@ npm run build
 
 ## 📄 License
 
-Apache-2.0 license
+Apache-2.0 License
 
 ---
+
+<div align="center">
+
+**Made with ❤️ by the web2json-agent team**
+
+[⭐ Star us on GitHub](https://github.com/ccprocessor/web2json-agent) | [🐛 Report Issues](https://github.com/ccprocessor/web2json-agent/issues) | [📖 Documentation](https://github.com/ccprocessor/web2json-agent)
+
+</div>
