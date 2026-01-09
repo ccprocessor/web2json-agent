@@ -20,11 +20,12 @@ https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
 
 <div align="center">
 
-| 指标 | 分数 |
-|------|------|
-| **平均精确率 (Precision)** | **91.50%** |
-| **平均召回率 (Recall)** | **90.46%** |
-| **平均 F1 分数** | **89.93%** |
+| |Precision|Recall|F1 Score|
+|--------|-------|-------|------|
+|COT| 87.75 | 79.90 |76.95 |
+|Reflexion| **93.28** | 82.76 |82.40 |
+|AUTOSCRAPER| 92.49 | 89.13 |88.69 |
+| Web2JSON-Agent | 91.50 | **90.46** |**89.93** |
 
 </div>
 
