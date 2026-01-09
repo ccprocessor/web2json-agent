@@ -26,18 +26,22 @@
       <div v-if="inputMode === 'file'" class="input-section">
         <div class="upload-options">
           <div class="upload-option">
-            <label class="upload-label">{{ t('step1.selectFiles') || '选择文件' }}</label>
+            <label class="upload-label">{{ t('step1.selectFiles') }}</label>
             <input
               type="file"
               ref="fileInput"
               @change="handleFileUpload"
               accept=".html,.htm"
               multiple
-              class="file-input"
+              style="display: none;"
             />
+            <button @click="$refs.fileInput.click()" class="custom-file-button">
+              📁 {{ t('step1.clickToSelect') }}
+            </button>
+            <span class="file-status">{{ fileInputStatus }}</span>
           </div>
           <div class="upload-option">
-            <label class="upload-label">{{ t('step1.selectFolder') || '选择文件夹' }}</label>
+            <label class="upload-label">{{ t('step1.selectFolder') }}</label>
             <input
               type="file"
               ref="folderInput"
@@ -45,8 +49,12 @@
               accept=".html,.htm"
               webkitdirectory
               directory
-              class="file-input"
+              style="display: none;"
             />
+            <button @click="$refs.folderInput.click()" class="custom-file-button">
+              📂 {{ t('step1.clickToSelectFolder') }}
+            </button>
+            <span class="file-status">{{ folderInputStatus }}</span>
           </div>
         </div>
         <div v-if="uploadedFiles.length" class="file-list">
@@ -286,6 +294,19 @@ const canGenerate = computed(() => {
   return hasInput && hasFields
 })
 
+// 文件选择状态
+const fileInputStatus = computed(() => {
+  const fileCount = uploadedFiles.value.filter(f => !f.isFolder).length
+  if (fileCount === 0) return t('step1.noFileSelected')
+  return t('step1.filesSelected', { count: fileCount })
+})
+
+const folderInputStatus = computed(() => {
+  const folderFileCount = uploadedFiles.value.filter(f => f.isFolder).length
+  if (folderFileCount === 0) return t('step1.noFileSelected')
+  return t('step1.filesSelected', { count: folderFileCount })
+})
+
 // 表格数据
 const tableFields = computed(() => {
   if (!previewFiles.value || previewFiles.value.length === 0) return []
@@ -308,12 +329,15 @@ const tableRows = computed(() => {
 // 文件处理
 async function handleFileUpload(event) {
   const files = Array.from(event.target.files)
+  const isFolder = event.target.hasAttribute('webkitdirectory')
+
   for (const file of files) {
     const text = await file.text()
     uploadedFiles.value.push({
       name: file.name,
       size: file.size,
-      content: text
+      content: text,
+      isFolder: isFolder
     })
   }
 }
@@ -813,6 +837,34 @@ onUnmounted(() => {
 .file-input:hover {
   background: #f0f2ff;
   border-color: #5568d3;
+}
+
+/* Custom File Button */
+.custom-file-button {
+  width: 100%;
+  padding: 15px;
+  border: 2px dashed #667eea;
+  border-radius: 8px;
+  background: #f8f9ff;
+  color: #667eea;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.custom-file-button:hover {
+  background: #f0f2ff;
+  border-color: #5568d3;
+  transform: translateY(-1px);
+}
+
+.file-status {
+  font-size: 0.85rem;
+  color: #666;
+  min-height: 20px;
+  display: block;
 }
 
 .file-list {

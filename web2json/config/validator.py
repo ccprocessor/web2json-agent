@@ -21,8 +21,8 @@ class ConfigValidator:
     # 可选但推荐的环境变量
     RECOMMENDED_VARS = {
         "OPENAI_API_BASE": "API 基础 URL（默认: https://api.openai.com/v1）",
-        "AGENT_MODEL": "Agent 使用的模型（默认: claude-sonnet-4-5-20250929）",
-        "CODE_GEN_MODEL": "代码生成模型（默认: claude-sonnet-4-5-20250929）",
+        # "AGENT_MODEL": "Agent 使用的模型（默认: claude-sonnet-4-5-20250929）",
+        # "CODE_GEN_MODEL": "代码生成模型（默认: claude-sonnet-4-5-20250929）",
     }
 
     @classmethod
@@ -273,11 +273,7 @@ HTML_KEEP_ATTRS=class,id,href,src,data-id
         Returns:
             是否成功完成配置
         """
-        print("\n" + "=" * 70)
-        print("web2json-agent 配置向导")
-        print("=" * 70)
-
-        print("\n请按照提示输入配置信息（按 Enter 使用默认值）\n")
+        print("\n请按照提示输入配置信息\n")
 
         config_values: Dict[str, str] = {}
 
@@ -344,7 +340,7 @@ HTML_KEEP_ATTRS=class,id,href,src,data-id
 
         # 询问是否测试 API 连接
         print("\n是否测试 API 连接和模型可用性？(推荐)")
-        test_choice = input("  测试 API? (Y/n): ").strip().lower()
+        test_choice = input("  测试 API? (Y/N): ").strip().lower()
 
         if test_choice != 'n':
             print("\n🔌 测试 API 连接...\n")
@@ -363,7 +359,8 @@ HTML_KEEP_ATTRS=class,id,href,src,data-id
 
         logger.success("\n✅ 配置完成！现在可以使用 web2json 命令了")
         print("\n示例命令:")
-        print("  web2json -d input_html/ -o output/blog")
+        print("  web2json -d html_samples/ -o output/result  # AI自动选择字段")
+        print("  web2json -d html_samples/ -o output/result --interactive-schema  # 指定字段")
 
         return True
 

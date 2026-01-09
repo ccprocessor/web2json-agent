@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/772fb610-808e-431d-93b3-d16ca0775b3f
 
 ## 🚀 快速开始
 
-### 通过 pip 安装
+### 通过 pip 安装（方式1）
 
 ```bash
 # 1. 安装包
@@ -40,11 +40,29 @@ pip install web2json-agent
 
 # 2. 初始化配置
 web2json setup
+```
 
-# 模式1：自动模式 (auto) - 快速探索，不确定需要提取哪些字段
+### 开发者安装（方式2）
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/ccprocessor/web2json-agent
+cd web2json-agent
+
+# 2. 以可编辑模式安装
+pip install -e .
+
+# 3. 初始化配置
+web2json setup
+```
+
+### 使用方式
+
+```bash
+# 模式1：自动模式 (auto) - 自动选择要抽取的字段并抽取
 web2json -d html_samples/ -o output/result
 
-# 模式2：预定义模式 (predefined) - 明确知道需要提取哪些字段，需要精确控制输出结构
+# 模式2：预定义模式 (predefined) - 指定要抽取的字段并抽取
 web2json -d html_samples/ -o output/result --interactive-schema
 ```
 
@@ -73,6 +91,6 @@ npm run build
 
 ## 📄 许可证
 
-MIT License
+Apache-2.0 license
 
 ---
