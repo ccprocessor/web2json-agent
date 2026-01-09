@@ -1,15 +1,12 @@
-# 包含必要的文档和配置文件
+# Include necessary documents and configuration files
 include README.md
-include CHANGELOG.md
 include LICENSE
 include requirements.txt
 include .env.example
-include install_playwright.sh
 include start.sh
-include start_dev.sh
 include stop.sh
 
-# 排除不必要的文件和目录
+# Exclude unnecessary files and directories
 global-exclude __pycache__
 global-exclude *.py[cod]
 global-exclude *.so
