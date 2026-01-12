@@ -8,4 +8,22 @@ __version__ = "1.1.2"
 __author__ = "YangGuoqiang"
 __email__ = "1041206149@qq.com"
 
-__all__ = ["__version__", "__author__", "__email__"]
+# 导入简洁API
+from web2json.simple import (
+    extract_data,
+    generate_parser,
+    generate_schema,
+    parse_with_parser,
+    extract_all
+)
+
+__all__ = [
+    "__version__",
+    "__author__",
+    "__email__",
+    "extract_data",
+    "generate_parser",
+    "generate_schema",
+    "parse_with_parser",
+    "extract_all"
+]

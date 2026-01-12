@@ -4,10 +4,11 @@
 
 **Stop Coding Scrapers, Start Getting Data — from Hours to Seconds**
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![LangChain](https://img.shields.io/badge/LangChain-1.0%2B-22c55e?style=for-the-badge&logo=chainlink&logoColor=white)](https://www.langchain.com/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-Compatible-ef4444?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
-[![PyPI](https://img.shields.io/badge/PyPI-1.1.2-f97316?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/web2json-agent/)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![LangChain](https://img.shields.io/badge/LangChain-1.0+-00C851?style=for-the-badge&logo=chainlink&logoColor=white)](https://www.langchain.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-Compatible-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
+[![License](https://img.shields.io/badge/License-Apache--2.0-orange?style=for-the-badge)](LICENSE)
+[![PyPI](https://img.shields.io/badge/PyPI-1.1.2-blue?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/web2json-agent/)
 
 [English](README.md) | [中文](docs/README_zh.md)
 
@@ -78,22 +79,128 @@ web2json -d html_samples/ -o output/result --interactive-schema
 
 ---
 
-## 🎨 Web UI
+## 🐍 API Usage
 
-### Installation and Launch
+### API 1: extract_data()
 
-```bash
-# Enter frontend directory
-cd web2json_ui/
+Complete workflow: Generate parser and parse all HTML files
 
-# Install dependencies
-npm install
+```python
+from web2json.simple import extract_data
 
-# Start development server
-npm run dev
+html_path = "html_samples/"
+iteration_rounds = 3  # default value
 
-# Or build production version
-npm run build
+# Method 1: auto mode (agent automatically analyzes and selects fields)
+result_dir = extract_data(html_path, iteration_rounds=iteration_rounds)
+
+# Method 2: predefined mode (specify schema)
+schema = {
+    "title": "string",
+    "author": "string",
+    "publish_date": "string",
+    "content": "string"
+}
+result_dir = extract_data(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+
+# output
+print(f"Result directory: {result_dir}")
+```
+
+### API 2: generate_parser()
+
+Generate parser code only
+
+```python
+from web2json.simple import generate_parser
+
+html_path = "html_samples/"
+iteration_rounds = 3  # default value
+
+# Method 1: auto mode
+parser_path = generate_parser(html_path, iteration_rounds=iteration_rounds)
+
+# Method 2: predefined mode
+schema = {
+    "title": "string",
+    "author": "string",
+    "publish_date": "string",
+    "content": "string"
+}
+parser_path = generate_parser(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+
+# output
+print(f"Parser path: {parser_path}")
+```
+
+### API 3: generate_schema()
+
+Generate data schema definition only
+
+```python
+from web2json.simple import generate_schema
+
+html_path = "html_samples/"
+iteration_rounds = 3  # default value
+
+# Method 1: auto mode
+schema_path = generate_schema(html_path, iteration_rounds=iteration_rounds)
+
+# Method 2: predefined mode
+schema = {
+    "title": "string",
+    "author": "string",
+    "publish_date": "string",
+    "content": "string"
+}
+schema_path = generate_schema(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+
+# output
+print(f"Schema path: {schema_path}")
+```
+
+### API 4: parse_with_parser()
+
+Parse HTML using existing parser
+
+```python
+from web2json.simple import parse_with_parser
+
+html_path = "html_samples/"
+parser_path = "output/sample/parsers/final_parser.py"
+
+# Call the API
+result_dir = parse_with_parser(html_path, parser_path)
+print(f"Result directory: {result_dir}")
+```
+
+### API 5: extract_all()
+
+Complete workflow, return all paths
+
+```python
+from web2json.simple import extract_all
+
+html_path = "html_samples/"
+iteration_rounds = 3  # default value
+
+# Method 1: auto mode
+paths = extract_all(html_path, iteration_rounds=iteration_rounds)
+
+# Method 2: predefined mode
+schema = {
+    "title": "string",
+    "author": "string",
+    "publish_date": "string",
+    "content": "string"
+}
+paths = extract_all(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+
+# output
+print(f"Result directory: {paths['result_dir']}")
+print(f"Parser path: {paths['parser_path']}")
+print(f"Schema path: {paths['schema_path']}")
+print(f"Output directory: {paths['output_dir']}")
 ```
 
 ---
