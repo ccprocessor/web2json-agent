@@ -4,10 +4,11 @@
 
 **告别爬虫开发，秒级获取网页数据**
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3b82f6?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![LangChain](https://img.shields.io/badge/LangChain-1.0%2B-22c55e?style=for-the-badge&logo=chainlink&logoColor=white)](https://www.langchain.com/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-Compatible-ef4444?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
-[![PyPI](https://img.shields.io/badge/PyPI-1.1.2-f97316?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/web2json-agent/)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![LangChain](https://img.shields.io/badge/LangChain-1.0+-00C851?style=for-the-badge&logo=chainlink&logoColor=white)](https://www.langchain.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-Compatible-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
+[![License](https://img.shields.io/badge/License-Apache--2.0-orange?style=for-the-badge)](../LICENSE)
+[![PyPI](https://img.shields.io/badge/PyPI-1.1.2-blue?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/web2json-agent/)
 
 [English](../README.md) | [中文](README_zh.md)
 
@@ -75,24 +76,124 @@ web2json -d html_samples/ -o output/result --interactive-schema
 
 ---
 
-## 🎨 Web UI 界面
+## 🐍 API 使用
 
-项目提供了一个可视化的 Web UI 界面，方便在浏览器中操作。
+### API 1: extract_data()
 
-### 安装和启动
+完整流程：生成解析器并解析所有HTML
 
-```bash
-# 进入前端目录
-cd web2json_ui/
+```python
+from web2json.simple import extract_data
 
-# 安装依赖
-npm install
+html_path = "html_samples/"
+iteration_rounds = 3  # 默认值
 
-# 启动开发服务器
-npm run dev
+# 方式1: auto模式（Agent 自动分析并选择字段）
+result_dir = extract_data(html_path, iteration_rounds=iteration_rounds)
+print(f"结果目录: {result_dir}")
 
-# 或构建生产版本
-npm run build
+# 方式2: predefined模式（指定要抽取的字段）
+schema = {
+    "title": "string",
+    "author": "string",
+    "publish_date": "string",
+    "content": "string"
+}
+result_dir = extract_data(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+print(f"结果目录: {result_dir}")
+```
+
+### API 2: generate_parser()
+
+只生成解析器代码
+
+```python
+from web2json.simple import generate_parser
+
+html_path = "html_samples/"
+iteration_rounds = 3  # 默认值
+
+# 方式1: auto模式
+parser_path = generate_parser(html_path, iteration_rounds=iteration_rounds)
+print(f"解析器路径: {parser_path}")
+
+# 方式2: predefined模式
+schema = {
+    "title": "string",
+    "author": "string",
+    "publish_date": "string",
+    "content": "string"
+}
+parser_path = generate_parser(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+print(f"解析器路径: {parser_path}")
+```
+
+### API 3: generate_schema()
+
+只生成数据结构定义
+
+```python
+from web2json.simple import generate_schema
+
+html_path = "html_samples/"
+iteration_rounds = 3  # 默认值
+
+# 方式1: auto模式
+schema_path = generate_schema(html_path, iteration_rounds=iteration_rounds)
+print(f"Schema路径: {schema_path}")
+
+# 方式2: predefined模式
+schema = {
+    "title": "string",
+    "author": "string",
+    "publish_date": "string",
+    "content": "string"
+}
+schema_path = generate_schema(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+print(f"Schema路径: {schema_path}")
+```
+
+### API 4: parse_with_parser()
+
+使用已有解析器解析HTML
+
+```python
+from web2json.simple import parse_with_parser
+
+html_path = "html_samples/"
+parser_path = "output/sample/parsers/final_parser.py"
+
+# 调用接口
+result_dir = parse_with_parser(html_path, parser_path)
+print(f"结果目录: {result_dir}")
+```
+
+### API 5: extract_all()
+
+完整流程，返回所有内容
+
+```python
+from web2json.simple import extract_all
+
+html_path = "html_samples/"
+iteration_rounds = 3  # 默认值
+
+# 方式1: auto模式
+paths = extract_all(html_path, iteration_rounds=iteration_rounds)
+
+# 方式2: predefined模式
+schema = {
+    "title": "string",
+    "author": "string",
+    "publish_date": "string",
+    "content": "string"
+}
+paths = extract_all(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+
+print(f"结果目录: {paths['result_dir']}")
+print(f"解析器路径: {paths['parser_path']}")
+print(f"Schema路径: {paths['schema_path']}")
+print(f"输出目录: {paths['output_dir']}")
 ```
 
 ---
