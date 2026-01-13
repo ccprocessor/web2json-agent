@@ -13,6 +13,7 @@
 
 </div>
 
+---
 
 ## 📋 视频演示
 
@@ -79,121 +80,92 @@ web2json -d html_samples/ -o output/result --interactive-schema
 
 ### API 1: extract_data()
 
-完整流程：生成解析器并解析所有HTML
+从HTML文件生成 解析代码/Schema/抽取数据
+
+**Auto模式** - 让AI自动检测并提取所有字段：
 
 ```python
-from web2json.simple import extract_data
+from web2json import Web2JsonConfig, extract_data
 
-html_path = "html_samples/"
-iteration_rounds = 3  # 默认值
+config = Web2JsonConfig(
+    name="news_auto",            # 运行名称（会创建 output/news_auto/）
+    html_path="html_samples/",   # 包含HTML文件的目录
+    iteration_rounds=3,          # AI使用多少个样本来学习结构
+    output_dir="output/",        # 结果保存位置
+    outputs=["data", "code", "schema"]     # 保留什么：解析后的数据 + 生成的解析器 + schema(含Xpath)
+)
 
-# 方式1: auto模式（Agent 自动分析并选择字段）
-result_dir = extract_data(html_path, iteration_rounds=iteration_rounds)
-print(f"结果目录: {result_dir}")
-
-# 方式2: predefined模式（指定要抽取的字段）
-schema = {
-    "title": "string",
-    "author": "string",
-    "publish_date": "string",
-    "content": "string"
-}
-result_dir = extract_data(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
-print(f"结果目录: {result_dir}")
+result_dir = extract_data(config)
+print("保存到:", result_dir)
 ```
 
-### API 2: generate_parser()
-
-只生成解析器代码
+**Predefined模式** - 只提取指定的字段：
 
 ```python
-from web2json.simple import generate_parser
+from web2json import Web2JsonConfig, extract_data
 
-html_path = "html_samples/"
-iteration_rounds = 3  # 默认值
+config = Web2JsonConfig(
+    name="news_schema",
+    html_path="html_samples/",
+    output_dir="output/",
 
-# 方式1: auto模式
-parser_path = generate_parser(html_path, iteration_rounds=iteration_rounds)
-print(f"解析器路径: {parser_path}")
+    # 指定要提取的字段
+    schema={
+        "title": "string",
+        "author": "string",
+        "publish_date": "string",
+        "content": "string"
+    },
 
-# 方式2: predefined模式
-schema = {
-    "title": "string",
-    "author": "string",
-    "publish_date": "string",
-    "content": "string"
-}
-parser_path = generate_parser(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
-print(f"解析器路径: {parser_path}")
+    outputs=["data", "code", "schema"]  # 保留数据 + 解析器 + schema
+)
+
+result_dir = extract_data(config)
+print("保存到:", result_dir)
 ```
 
-### API 3: generate_schema()
+**配置参数说明：**
 
-只生成数据结构定义
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `name` | str | 必需 | 运行名称（在output_dir下创建子目录） |
+| `html_path` | str | 必需 | 包含HTML文件的目录 |
+| `iteration_rounds` | int | 3 | 用于学习的HTML样本数量 |
+| `output_dir` | str | "output" | 主输出目录 |
+| `schema` | Dict | None | 字段定义（None=Auto模式，Dict=Predefined模式） |
+| `outputs` | List[str] | ["data", "code", "schema"] | 要保留的输出类型 |
+
+**输出类型说明：**
+
+- `"data"` - 解析后的JSON数据文件（保存在 `result/` 目录）
+- `"code"` - 生成的解析器代码（保存在 `parsers/` 目录）
+- `"schema"` - 学习到的schema定义（保存在 `schemas/` 目录）
+
+---
+
+### API 2: parse_data()
+
+使用已有的训练好的解析器解析新的HTML文件。
 
 ```python
-from web2json.simple import generate_schema
+from web2json import Web2JsonConfig, parse_data
 
-html_path = "html_samples/"
-iteration_rounds = 3  # 默认值
+config = Web2JsonConfig(
+    name="new_batch",
+    html_path="new_html_samples/",                            # 要解析的新HTML文件
+    parser_path="output/news_schema/parsers/final_parser.py", # 之前训练好的解析器
+    output_dir="output/",
+    outputs=["data"]                                          # 只保留解析后的JSON数据
+)
 
-# 方式1: auto模式
-schema_path = generate_schema(html_path, iteration_rounds=iteration_rounds)
-print(f"Schema路径: {schema_path}")
-
-# 方式2: predefined模式
-schema = {
-    "title": "string",
-    "author": "string",
-    "publish_date": "string",
-    "content": "string"
-}
-schema_path = generate_schema(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
-print(f"Schema路径: {schema_path}")
+result_dir = parse_data(config)
+print("保存到:", result_dir)
 ```
 
-### API 4: parse_with_parser()
-
-使用已有解析器解析HTML
-
-```python
-from web2json.simple import parse_with_parser
-
-html_path = "html_samples/"
-parser_path = "output/sample/parsers/final_parser.py"
-
-# 调用接口
-result_dir = parse_with_parser(html_path, parser_path)
-print(f"结果目录: {result_dir}")
-```
-
-### API 5: extract_all()
-
-完整流程，返回所有内容
-
-```python
-from web2json.simple import extract_all
-
-html_path = "html_samples/"
-iteration_rounds = 3  # 默认值
-
-# 方式1: auto模式
-paths = extract_all(html_path, iteration_rounds=iteration_rounds)
-
-# 方式2: predefined模式
-schema = {
-    "title": "string",
-    "author": "string",
-    "publish_date": "string",
-    "content": "string"
-}
-paths = extract_all(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
-
-print(f"结果目录: {paths['result_dir']}")
-print(f"解析器路径: {paths['parser_path']}")
-print(f"Schema路径: {paths['schema_path']}")
-print(f"输出目录: {paths['output_dir']}")
-```
+**适用场景：**
+- 已经有之前运行生成的训练好的解析器
+- 需要解析结构相同的新HTML批次
+- 生产环境中的增量数据处理
 
 ---
 

@@ -82,125 +82,92 @@ web2json -d html_samples/ -o output/result --interactive-schema
 
 ### API 1: extract_data()
 
-Complete workflow: Generate parser and parse all HTML files
+Generate data/code/schema from HTML files.
+
+**Auto Mode** - Let AI automatically detect and extract all fields:
 
 ```python
-from web2json.simple import extract_data
+from web2json import Web2JsonConfig, extract_data
 
-html_path = "html_samples/"
-iteration_rounds = 3  # default value
+config = Web2JsonConfig(
+    name="news_auto",            # Run name (creates output/news_auto/)
+    html_path="html_samples/",   # Folder containing HTML files
+    iteration_rounds=3,          # How many samples AI uses to learn structure
+    output_dir="output/",        # Where all results will be saved
+    outputs=["data", "code", "schema"]     # What to keep: parsed data + generated parser + schema(Contains XPath)
+)
 
-# Method 1: auto mode (agent automatically analyzes and selects fields)
-result_dir = extract_data(html_path, iteration_rounds=iteration_rounds)
-
-# Method 2: predefined mode (specify schema)
-schema = {
-    "title": "string",
-    "author": "string",
-    "publish_date": "string",
-    "content": "string"
-}
-result_dir = extract_data(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
-
-# output
-print(f"Result directory: {result_dir}")
+result_dir = extract_data(config)
+print("Saved to:", result_dir)
 ```
 
-### API 2: generate_parser()
-
-Generate parser code only
+**Predefined Mode** - Extract only specified fields:
 
 ```python
-from web2json.simple import generate_parser
+from web2json import Web2JsonConfig, extract_data
 
-html_path = "html_samples/"
-iteration_rounds = 3  # default value
+config = Web2JsonConfig(
+    name="news_schema",
+    html_path="html_samples/",
+    output_dir="output/",
 
-# Method 1: auto mode
-parser_path = generate_parser(html_path, iteration_rounds=iteration_rounds)
+    # Specify fields you want to extract
+    schema={
+        "title": "string",
+        "author": "string",
+        "publish_date": "string",
+        "content": "string"
+    },
 
-# Method 2: predefined mode
-schema = {
-    "title": "string",
-    "author": "string",
-    "publish_date": "string",
-    "content": "string"
-}
-parser_path = generate_parser(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
+    outputs=["data", "code", "schema"]  # Keep data + parser + schema
+)
 
-# output
-print(f"Parser path: {parser_path}")
+result_dir = extract_data(config)
+print("Saved to:", result_dir)
 ```
 
-### API 3: generate_schema()
+**Configuration Parameters:**
 
-Generate data schema definition only
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | str | Required | Run name (creates subdirectory in output_dir) |
+| `html_path` | str | Required | Directory containing HTML files |
+| `iteration_rounds` | int | 3 | Number of HTML samples for learning |
+| `output_dir` | str | "output" | Main output directory |
+| `schema` | Dict | None | Field definitions (None=Auto, Dict=Predefined) |
+| `outputs` | List[str] | ["data", "code", "schema"] | Output types to keep |
+
+**Output Types:**
+
+- `"data"` - Parsed JSON data files (saved in `result/` directory)
+- `"code"` - Generated parser code (saved in `parsers/` directory)
+- `"schema"` - Learned schema definition (saved in `schemas/` directory)
+
+---
+
+### API 2: parse_data()
+
+Parse new HTML files using an existing trained parser.
 
 ```python
-from web2json.simple import generate_schema
+from web2json import Web2JsonConfig, parse_data
 
-html_path = "html_samples/"
-iteration_rounds = 3  # default value
+config = Web2JsonConfig(
+    name="new_batch",
+    html_path="new_html_samples/",                            # New HTML files to parse
+    parser_path="output/news_schema/parsers/final_parser.py", # Previously trained parser
+    output_dir="output/",
+    outputs=["data"]                                          # Only keep parsed JSON data
+)
 
-# Method 1: auto mode
-schema_path = generate_schema(html_path, iteration_rounds=iteration_rounds)
-
-# Method 2: predefined mode
-schema = {
-    "title": "string",
-    "author": "string",
-    "publish_date": "string",
-    "content": "string"
-}
-schema_path = generate_schema(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
-
-# output
-print(f"Schema path: {schema_path}")
+result_dir = parse_data(config)
+print("Saved to:", result_dir)
 ```
 
-### API 4: parse_with_parser()
-
-Parse HTML using existing parser
-
-```python
-from web2json.simple import parse_with_parser
-
-html_path = "html_samples/"
-parser_path = "output/sample/parsers/final_parser.py"
-
-# Call the API
-result_dir = parse_with_parser(html_path, parser_path)
-print(f"Result directory: {result_dir}")
-```
-
-### API 5: extract_all()
-
-Complete workflow, return all paths
-
-```python
-from web2json.simple import extract_all
-
-html_path = "html_samples/"
-iteration_rounds = 3  # default value
-
-# Method 1: auto mode
-paths = extract_all(html_path, iteration_rounds=iteration_rounds)
-
-# Method 2: predefined mode
-schema = {
-    "title": "string",
-    "author": "string",
-    "publish_date": "string",
-    "content": "string"
-}
-paths = extract_all(html_path, iteration_rounds=iteration_rounds, schema_template=schema)
-
-# output
-print(f"Result directory: {paths['result_dir']}")
-print(f"Parser path: {paths['parser_path']}")
-print(f"Schema path: {paths['schema_path']}")
-print(f"Output directory: {paths['output_dir']}")
-```
+**Use Cases:**
+- You already have a trained parser from previous runs
+- Need to parse new batches of HTML with the same structure
+- Production environments with incremental data processing
 
 ---
 
