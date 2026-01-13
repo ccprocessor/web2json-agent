@@ -8,7 +8,6 @@ from typing import Any, Dict, List
 from loguru import logger
 
 from web2json.agent.processors import CodeProcessor
-from web2json.tools.xpath_extractor import XPathExtractor
 
 from .base_phase import BasePhase
 
@@ -169,35 +168,5 @@ class CodePhase(BasePhase):
             )
             result['final_parser'] = final_parser
             result['success'] = True
-
-            # 提取最优XPath并保存
-            try:
-                logger.info("\n" + "="*70)
-                logger.info("提取最优XPath表达式...")
-                logger.info("="*70)
-
-                if self.progress_callback:
-                    self.progress_callback("xpath_extraction", "提取最优XPath表达式", 80)
-
-                xpath_extractor = XPathExtractor()
-                xpath_output_path = self.output_dir / "parsers" / "xpaths.json"
-
-                success = xpath_extractor.extract_and_save_with_llm(
-                    parser_path=final_parser['parser_path'],
-                    output_path=str(xpath_output_path)
-                )
-
-                if success:
-                    logger.success(f"XPath提取完成: {xpath_output_path}")
-                    result['xpath_file'] = str(xpath_output_path)
-
-                    if self.progress_callback:
-                        self.progress_callback("xpath_extraction", "XPath提取完成", 85)
-                else:
-                    logger.warning("XPath提取失败，但不影响解析器使用")
-
-            except Exception as e:
-                logger.error(f"XPath提取过程出错: {e}")
-                logger.warning("XPath提取失败，但不影响解析器使用")
 
         return result
