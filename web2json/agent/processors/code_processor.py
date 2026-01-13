@@ -102,13 +102,13 @@ class CodeProcessor(BaseProcessor):
 
         Args:
             code: 解析器代码
-            output_dir: 输出目录
+            output_dir: 输出目录（未使用，保留用于兼容）
             config: 配置信息（Schema）
 
         Returns:
             最终解析器信息
         """
-        final_parser_path = output_dir / "final_parser.py"
+        final_parser_path = self.parsers_dir / "final_parser.py"
         with open(final_parser_path, 'w', encoding='utf-8') as f:
             f.write(code)
         logger.success(f"最终解析器已保存: {final_parser_path}")
