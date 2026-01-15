@@ -14,7 +14,8 @@ from web2json.simple import (
     extract_html_to_json,
     infer_html_to_schema,
     generate_html_parser,
-    parse_html_with_parser
+    parse_html_with_parser,
+    cluster_html_files
 )
 
 __all__ = [
@@ -25,5 +26,6 @@ __all__ = [
     "extract_html_to_json",
     "infer_html_to_schema",
     "generate_html_parser",
-    "parse_html_with_parser"
+    "parse_html_with_parser",
+    "cluster_html_files"
 ]
