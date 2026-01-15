@@ -441,3 +441,146 @@ def parse_html_with_parser(config: Web2JsonConfig) -> str:
 
     return results_dir
 
+
+def cluster_html_files(config: Web2JsonConfig) -> Dict[str, str]:
+    """API 5: 对HTML文件进行布局聚类分组
+
+    根据HTML页面的布局相似度进行聚类分析，将相似布局的页面分组到不同的子目录。
+    适用场景：
+    - 混合了多种页面布局的HTML文件集合（如列表页、详情页混在一起）
+    - 需要先了解HTML文件的布局分布情况
+    - 需要将不同布局的页面分开处理
+
+    Args:
+        config: Web2JsonConfig配置对象
+
+    Returns:
+        Dict[str, str]: 聚类结果信息，包含:
+            - output_dir: 输出根目录
+            - cluster_info_file: 聚类信息文件路径
+            - clusters: 各簇目录映射 {"cluster_0": "path/to/cluster0", ...}
+            - noise: 噪声点目录路径（如有）
+
+    Raises:
+        Exception: 执行失败时抛出异常
+
+    Example:
+        >>> config = Web2JsonConfig(
+        ...     name="mixed_pages",
+        ...     html_path="mixed_html/",
+        ...     output_path="output/"
+        ... )
+        >>> result = cluster_html_files(config)
+        >>> print(f"聚类结果保存在: {result['output_dir']}")
+        >>> print(f"识别出 {len(result['clusters'])} 个布局类型")
+    """
+    _setup_logger()
+
+    logger.info(f"[API] cluster_html_files - HTML布局聚类")
+    logger.info(f"  HTML路径: {config.html_path}")
+    logger.info(f"  输出目录: {config.get_full_output_path()}")
+
+    # 读取HTML文件
+    html_files = _read_html_files(config.html_path)
+    logger.info(f"找到 {len(html_files)} 个HTML文件")
+
+    # 确定输出目录
+    output_path = Path(config.get_full_output_path()).absolute()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # 读取所有HTML内容
+    logger.info("正在读取HTML内容...")
+    html_contents = []
+    for file_path in html_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                html_contents.append(f.read())
+        except Exception as e:
+            raise Exception(f"读取文件失败 {file_path}: {e}")
+
+    # 执行聚类分析
+    logger.info("正在进行布局聚类分析...")
+    from web2json.tools.cluster import cluster_html_layouts_optimized
+    from web2json.config.settings import settings
+    import shutil
+
+    try:
+        labels, sim_mat, clusters = cluster_html_layouts_optimized(
+            html_contents,
+            use_knn_graph=True
+        )
+    except Exception as e:
+        raise Exception(f"聚类失败: {e}")
+
+    # 统计聚类结果
+    unique_labels = sorted(set(labels))
+    noise_count = sum(1 for l in labels if l == -1)
+    cluster_count = len([l for l in unique_labels if l != -1])
+
+    logger.info("✓ 聚类分析完成")
+    logger.info(f"  总文件数: {len(html_files)}")
+    logger.info(f"  识别出的布局簇数: {cluster_count}")
+    logger.info(f"  噪声点（未归类）: {noise_count}")
+
+    # 保存聚类信息到文件
+    cluster_info_file = output_path / "cluster_info.txt"
+    try:
+        with open(cluster_info_file, 'w', encoding='utf-8') as f:
+            f.write("HTML布局聚类结果\n")
+            f.write("="*70 + "\n\n")
+            f.write(f"聚类参数:\n")
+            f.write(f"  eps: {settings.cluster_eps}\n")
+            f.write(f"  min_samples: {settings.cluster_min_samples}\n\n")
+            f.write(f"聚类统计:\n")
+            f.write(f"  总文件数: {len(html_files)}\n")
+            f.write(f"  布局簇数: {cluster_count}\n")
+            f.write(f"  噪声点数: {noise_count}\n\n")
+
+            for lbl in unique_labels:
+                cluster_files = [p for p, l in zip(html_files, labels) if l == lbl]
+                f.write(f"\n{'噪声点' if lbl == -1 else f'簇 {lbl}'} ({len(cluster_files)} 个文件):\n")
+                for file_path in cluster_files:
+                    f.write(f"  - {Path(file_path).name}\n")
+    except Exception as e:
+        logger.warning(f"保存聚类信息失败: {e}")
+
+    # 为每个簇创建子目录并复制HTML文件
+    result = {
+        'output_dir': str(output_path),
+        'cluster_info_file': str(cluster_info_file),
+        'clusters': {},
+        'noise': None
+    }
+
+    for lbl in unique_labels:
+        cluster_files = [p for p, l in zip(html_files, labels) if l == lbl]
+        if not cluster_files:
+            continue
+
+        # 创建子目录
+        if lbl == -1:
+            cluster_dir = output_path / "noise"
+            cluster_key = "noise"
+            result['noise'] = str(cluster_dir)
+        else:
+            cluster_dir = output_path / f"cluster_{lbl}"
+            cluster_key = f"cluster_{lbl}"
+            result['clusters'][cluster_key] = str(cluster_dir)
+
+        cluster_dir.mkdir(parents=True, exist_ok=True)
+
+        # 复制HTML文件到对应目录
+        for src_file in cluster_files:
+            dst_file = cluster_dir / Path(src_file).name
+            try:
+                shutil.copy2(src_file, dst_file)
+            except Exception as e:
+                logger.warning(f"复制文件失败 {src_file}: {e}")
+
+        logger.info(f"  {'噪声点' if lbl == -1 else f'簇 {lbl}'}: {len(cluster_files)} 个文件 -> {cluster_dir}")
+
+    logger.info("✓ 聚类完成")
+    logger.info(f"  聚类信息: {cluster_info_file}")
+
+    return result
+

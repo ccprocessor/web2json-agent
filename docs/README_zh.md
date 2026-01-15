@@ -179,6 +179,26 @@ with open(schema_path) as f:
 ```
 
 ---
+### 示例 5: HTML文件聚类
+
+将具有不同布局的HTML文件分组到单独的目录中（每个目录只需调用一次Agent）：
+
+```python
+from web2json import Web2JsonConfig, cluster_html_files
+
+config = Web2JsonConfig(
+    name="clustered_pages",
+    html_path="html_samples/",
+    output_path="output/"
+)
+
+result = cluster_html_files(config)
+# Output: output/clustered_pages/cluster_0/, cluster_1/, noise/, cluster_info.txt
+print(f"✓ Found {len(result['clusters'])} layout types")
+print(f"✓ Cluster info: {result['cluster_info_file']}")
+```
+
+---
 
 ### 配置参数参考
 
@@ -207,6 +227,9 @@ generate_html_parser(config)
 
 # 已有解析器，需要解析更多文件？ → parse_html_with_parser
 parse_html_with_parser(config)
+
+# 输入的HTML来自不同域名/有不同的布局? → cluster_html_files
+cluster_html_files(config)
 ```
 
 ---

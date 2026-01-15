@@ -70,7 +70,7 @@ web2json setup
 
 ## 🐍 API Usage
 
-Web2JSON provides four simple APIs for different use cases. All examples are ready to run!
+Web2JSON provides five simple APIs for different use cases. All examples are ready to run!
 
 ### Example 1: Directly obtain structured data
 
@@ -180,6 +180,27 @@ with open(schema_path) as f:
 
 ---
 
+### Example 5: Cluster HTML Files by Layout
+
+Group HTML files with different layouts into separate directories(Each directory needs to call the Agent only once):
+
+```python
+from web2json import Web2JsonConfig, cluster_html_files
+
+config = Web2JsonConfig(
+    name="clustered_pages",
+    html_path="html_samples/",
+    output_path="output/"
+)
+
+result = cluster_html_files(config)
+# Output: output/clustered_pages/cluster_0/, cluster_1/, noise/, cluster_info.txt
+print(f"✓ Found {len(result['clusters'])} layout types")
+print(f"✓ Cluster info: {result['cluster_info_file']}")
+```
+
+---
+
 ### Configuration Reference
 
 | Parameter | Type | Default | Description |
@@ -207,6 +228,9 @@ generate_html_parser(config)
 
 # Have parser, need to parse more files? → parse_html_with_parser
 parse_html_with_parser(config)
+
+# Input HTML from different domains/with different layouts? → cluster_html_files
+cluster_html_files(config)
 ```
 
 ---
