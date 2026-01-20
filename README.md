@@ -15,6 +15,12 @@
 
 ---
 
+## 📖 What is web2json-agent?
+
+An AI-powered web scraping agent that automatically generates production-ready parser code from HTML samples — no manual XPath/CSS selector writing required.
+
+---
+
 ## 📋 Demo
 
 
@@ -72,33 +78,34 @@ web2json setup
 
 Web2JSON provides five simple APIs for different use cases. All examples are ready to run!
 
-### Example 1: Directly obtain structured data
+### API 1: `extract_data` - Complete Workflow
 
-**Auto Mode** - Let AI automatically filter fields and extract data:
+Extract structured data from HTML in one step (schema + parser + data).
+
+**Auto Mode** - Let AI automatically discover and extract fields:
 
 ```python
-from web2json import Web2JsonConfig, extract_html_to_json
+from web2json import Web2JsonConfig, extract_data
 
 config = Web2JsonConfig(
     name="my_project",
     html_path="html_samples/",
     output_path="output/"
+    # enable_schema_edit=True  # Uncomment to manually edit schema
 )
 
-result = extract_html_to_json(config)
+result_dir = extract_data(config)
 # Output: output/my_project/result/*.json
-print(f"✓ Results saved to: {result}")
 ```
 
 **Predefined Mode** - Extract only specific fields:
 
 ```python
-from web2json import Web2JsonConfig, extract_html_to_json
+from web2json import Web2JsonConfig, extract_data
 
 config = Web2JsonConfig(
     name="articles",
     html_path="html_samples/",
-    output_path="output/",
     schema={
         "title": "string",
         "author": "string",
@@ -107,130 +114,124 @@ config = Web2JsonConfig(
     }
 )
 
-result = extract_html_to_json(config)
+result_dir = extract_data(config)
 # Output: output/articles/result/*.json
-print(f"✓ Results saved to: {result}")
 ```
 
 ---
 
-### Example 2: Generate Reusable Parser
+### API 2: `extract_schema` - Extract Schema Only
 
-Generate a parser once, use it many times:
+Generate a JSON schema describing the data structure in HTML.
 
 ```python
-from web2json import Web2JsonConfig, generate_html_parser
+from web2json import Web2JsonConfig, extract_schema
 
 config = Web2JsonConfig(
-    name="product_parser",
-    html_path="training_samples/",
-    output_path="parsers/"
+    name="schema_only",
+    html_path="html_samples/",
+    iteration_rounds=3
+    # enable_schema_edit=True  # Uncomment to manually edit schema
 )
 
-parser_path = generate_html_parser(config)
-# Output: parsers/product_parser/final_parser.py
-print(f"✓ Parser saved: {parser_path}")
+schema_path = extract_schema(config)
+# Output: output/schema_only/final_schema.json
 ```
 
 ---
 
-### Example 3: Parse with Existing Parser
+### API 3: `infer_code` - Generate Parser Code
 
-Reuse a trained parser on new HTML files:
+Generate parser code from an existing schema.
 
 ```python
-from web2json import Web2JsonConfig, parse_html_with_parser
+from web2json import infer_code
 
-config = Web2JsonConfig(
-    name="batch_001",
+parser_path = infer_code(
+    schema_path="output/schema_only/final_schema.json",
+    html_path="html_samples/",
+    name="my_parser"
+)
+# Output: output/my_parser/final_parser.py
+```
+
+---
+
+### API 4: `extract_data_with_code` - Parse with Code
+
+Use parser code to extract data from HTML files.
+
+```python
+from web2json import extract_data_with_code
+
+# Read parser code
+with open("output/my_parser/final_parser.py") as f:
+    parser_code = f.read()
+
+result_dir = extract_data_with_code(
+    parser_code=parser_code,
     html_path="new_html_files/",
-    output_path="results/",
-    parser_path="parsers/product_parser/final_parser.py"
+    name="batch_001"
 )
-
-result = parse_html_with_parser(config)
-# Output: results/batch_001/result/*.json
-print(f"✓ Parsed data saved to: {result}")
+# Output: output/batch_001/result/*.json
 ```
 
 ---
 
-### Example 4: Generate Schema Only
+### API 5: `classify_html_dir` - Classify HTML by Layout
 
-Generate a JSON Schema containing field descriptions and XPath:
-
-```python
-from web2json import Web2JsonConfig, infer_html_to_schema
-import json
-
-config = Web2JsonConfig(
-    name="schema_exploration",
-    html_path="html_samples/",
-    output_path="schemas/"
-)
-
-schema_path = infer_html_to_schema(config)
-# Output: schemas/schema_exploration/final_schema.json
-
-# View the learned schema
-with open(schema_path) as f:
-    schema = json.load(f)
-    print(json.dumps(schema, indent=2))
-```
-
----
-
-### Example 5: Cluster HTML Files by Layout
-
-Group HTML files with different layouts into separate directories(Each directory needs to call the Agent only once):
+Group HTML files by layout similarity (for mixed-layout datasets).
 
 ```python
-from web2json import Web2JsonConfig, cluster_html_files
+from web2json import classify_html_dir
 
-config = Web2JsonConfig(
-    name="clustered_pages",
-    html_path="html_samples/",
-    output_path="output/"
+result = classify_html_dir(
+    html_path="mixed_html/",
+    name="classified"
 )
-
-result = cluster_html_files(config)
-# Output: output/clustered_pages/cluster_0/, cluster_1/, noise/, cluster_info.txt
-print(f"✓ Found {len(result['clusters'])} layout types")
-print(f"✓ Cluster info: {result['cluster_info_file']}")
+# Output: output/classified/cluster_0/, cluster_1/, cluster_info.txt
 ```
 
 ---
 
 ### Configuration Reference
 
+**Web2JsonConfig Parameters:**
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `name` | `str` | Required | Project name (creates subdirectory) |
-| `html_path` | `str` | Required | Directory with HTML files |
+| `html_path` | `str` | Required | HTML directory path |
 | `output_path` | `str` | `"output"` | Output directory |
 | `iteration_rounds` | `int` | `3` | Number of samples for learning |
-| `schema` | `Dict` | `None` | Predefined fields (None = auto mode) |
-| `parser_path` | `str` | `None` | Parser file (for `parse_html_with_parser`) |
+| `schema` | `Dict` | `None` | Predefined schema (None = auto mode) |
+| `enable_schema_edit` | `bool` | `False` | Enable manual schema editing |
+
+**Standalone API Parameters:**
+
+| API | Parameters | Description |
+|-----|------------|-------------|
+| `infer_code` | `schema_path`, `html_path`, `name` | Generate parser from schema |
+| `extract_data_with_code` | `parser_code`, `html_path`, `name` | Parse with code string |
+| `classify_html_dir` | `html_path`, `name` | Classify by layout |
 
 ---
 
 ### Which API Should I Use?
 
 ```python
-# Need JSON data immediately? → extract_html_to_json
-extract_html_to_json(config)
+# Need data immediately? → extract_data
+extract_data(config)
 
-# Want to inspect schema first? → infer_html_to_schema
-infer_html_to_schema(config)
+# Want to review/edit schema first? → extract_schema + infer_code
+schema = extract_schema(config)
+parser = infer_code(schema_path=schema, html_path="...")
 
-# Need reusable parser? → generate_html_parser
-generate_html_parser(config)
+# Have parser code, need to parse more files? → extract_data_with_code
+extract_data_with_code(parser_code=code, html_path="...")
 
-# Have parser, need to parse more files? → parse_html_with_parser
-parse_html_with_parser(config)
-
-# Input HTML from different domains/with different layouts? → cluster_html_files
-cluster_html_files(config)
+# Mixed layouts (list + detail pages)? → classify_html_dir
+classify_html_dir(html_path="...")
 ```
 
 ---
