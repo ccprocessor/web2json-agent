@@ -18,7 +18,7 @@ class ParserAgent:
     通过给定一组HTML文件，自动生成能够解析这些页面的Python代码
     """
 
-    def __init__(self, output_dir: str = "output", schema_mode: str = None, schema_template: Dict = None, progress_callback=None):
+    def __init__(self, output_dir: str = "output", schema_mode: str = None, schema_template: Dict = None, enable_schema_edit: bool = None, progress_callback=None):
         """
         初始化Agent
 
@@ -26,16 +26,19 @@ class ParserAgent:
             output_dir: 输出目录
             schema_mode: Schema模式 (auto: 自动提取, predefined: 使用预定义模板)
             schema_template: 预定义的Schema模板（当schema_mode=predefined时使用）
+            enable_schema_edit: 是否启用Schema手动编辑模式
             progress_callback: 进度回调函数 callback(phase, step, percentage)
         """
         self.planner = AgentPlanner()
         self.schema_mode = schema_mode or settings.schema_mode
         self.schema_template = schema_template
+        self.enable_schema_edit = enable_schema_edit if enable_schema_edit is not None else settings.enable_schema_edit
         self.progress_callback = progress_callback
         self.executor = AgentExecutor(
             output_dir=output_dir,
             schema_mode=self.schema_mode,
             schema_template=self.schema_template,
+            enable_schema_edit=self.enable_schema_edit,
             progress_callback=progress_callback
         )
         self.output_dir = Path(output_dir)
@@ -47,7 +50,9 @@ class ParserAgent:
         domain: str = None,
         iteration_rounds: int = None,
         schema_mode: str = None,
-        schema_template: str = None
+        schema_template: str = None,
+        enable_schema_edit: bool = None,
+        auto_parse: bool = True
     ) -> Dict:
         """
         生成解析器
@@ -56,8 +61,9 @@ class ParserAgent:
         1. 规划：分析HTML文件并制定执行计划
         2. 执行：
            - 阶段1: Schema迭代 - 提取并优化Schema（或使用预定义Schema补充xpath）
+           - 阶段1.5: Schema编辑（可选）- 用户手动编辑schema
            - 阶段2: 代码迭代 - 生成并优化解析代码
-        3. 批量解析：使用生成的解析器解析所有HTML文件
+        3. 批量解析（可选）：使用生成的解析器解析所有HTML文件
         4. 总结：生成执行总结
 
         Args:
@@ -66,10 +72,17 @@ class ParserAgent:
             iteration_rounds: 迭代轮数（用于Schema学习的样本数量），默认为3
             schema_mode: Schema模式 (auto/predefined)，覆盖初始化时的设置
             schema_template: 预定义schema模板文件路径（JSON格式）
+            enable_schema_edit: 是否启用Schema手动编辑模式
+            auto_parse: 是否自动批量解析所有HTML文件，默认为True
 
         Returns:
             生成结果
         """
+        # 如果提供了enable_schema_edit参数，更新设置
+        if enable_schema_edit is not None:
+            self.enable_schema_edit = enable_schema_edit
+            self.executor.enable_schema_edit = enable_schema_edit
+
         # 如果提供了schema_mode参数，更新模式
         if schema_mode:
             self.schema_mode = schema_mode
@@ -130,17 +143,23 @@ class ParserAgent:
                 'execution_result': execution_result
             }
 
-        # 第三步：批量解析所有HTML文件
-        logger.info("\n[步骤 3/4] 批量解析所有HTML文件")
-        if self.progress_callback:
-            self.progress_callback("batch_parsing", "开始批量解析HTML文件", 85)
-        parser_path = execution_result['final_parser']['parser_path']
-        all_html_files = plan['all_html_files']
+        # 第三步：批量解析所有HTML文件（可选）
+        parse_result = None
+        if auto_parse:
+            logger.info("\n[步骤 3/4] 批量解析所有HTML文件")
+            if self.progress_callback:
+                self.progress_callback("batch_parsing", "开始批量解析HTML文件", 85)
+            parser_path = execution_result['final_parser']['parser_path']
+            all_html_files = plan['all_html_files']
 
-        parse_result = self.executor.parse_all_html_files(
-            html_files=all_html_files,
-            parser_path=parser_path
-        )
+            parse_result = self.executor.parse_all_html_files(
+                html_files=all_html_files,
+                parser_path=parser_path
+            )
+        else:
+            logger.info("\n[步骤 3/4] 跳过批量解析（auto_parse=False）")
+            if self.progress_callback:
+                self.progress_callback("batch_parsing", "跳过批量解析", 85)
 
         # 第四步：总结
         logger.info("\n[步骤 4/4] 生成总结")
@@ -156,7 +175,7 @@ class ParserAgent:
             'summary': summary,
             'parser_path': execution_result['final_parser']['parser_path'],
             'config_path': execution_result['final_parser'].get('config_path'),
-            'results_dir': parse_result.get('output_dir'),
+            'results_dir': parse_result.get('output_dir') if parse_result else None,
         }
 
     def _generate_summary(self, execution_result: Dict, parse_result: Dict = None) -> str:
@@ -173,11 +192,31 @@ class ParserAgent:
         lines.append(f"\nSchema迭代阶段: {len(schema_success_rounds)}/{len(schema_rounds)} 轮成功")
 
         if schema_phase.get('final_schema'):
-            final_schema_size = len(schema_phase['final_schema'])
+            final_schema = schema_phase['final_schema']
+            final_schema_size = len(final_schema)
             lines.append(f"  最终Schema字段数: {final_schema_size}")
 
-        if schema_phase.get('final_schema_path'):
-            lines.append(f"  最终Schema路径: {schema_phase['final_schema_path']}")
+            # 直接打印 Schema 内容，而不是路径
+            lines.append(f"  最终Schema内容:")
+            import json
+            schema_json = json.dumps(final_schema, ensure_ascii=False, indent=4)
+            # 缩进每一行
+            for schema_line in schema_json.split('\n'):
+                lines.append(f"    {schema_line}")
+        elif schema_phase.get('final_schema_path'):
+            # 如果没有 final_schema 但有路径，读取文件
+            final_schema_path = schema_phase['final_schema_path']
+            try:
+                with open(final_schema_path, 'r', encoding='utf-8') as f:
+                    final_schema = json.load(f)
+                lines.append(f"  最终Schema字段数: {len(final_schema)}")
+                lines.append(f"  最终Schema内容:")
+                schema_json = json.dumps(final_schema, ensure_ascii=False, indent=4)
+                for schema_line in schema_json.split('\n'):
+                    lines.append(f"    {schema_line}")
+            except Exception as e:
+                logger.warning(f"无法读取Schema文件: {e}")
+                lines.append(f"  最终Schema路径: {final_schema_path}")
 
         # 代码迭代阶段结果
         code_phase = execution_result.get('code_phase', {})

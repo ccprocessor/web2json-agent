@@ -138,6 +138,56 @@
         </div>
         <button @click="addField" class="btn-add-small">{{ t('step2.addField') }}</button>
       </div>
+
+      <!-- 自动模式 - 生成初步Schema -->
+      <div v-if="schemaMode === 'auto'" class="auto-mode-section">
+        <!-- 生成初步Schema按钮 -->
+        <div v-if="!preliminarySchemaGenerated" class="generate-schema-section">
+          <p class="hint">💡 {{ t('parserTab.autoModeHint') || '点击下方按钮，AI将分析HTML并生成初步的字段定义，你可以预览并编辑这些字段' }}</p>
+          <button
+            @click="generatePreliminarySchema"
+            :disabled="loadingSchema || sampleCount === 0"
+            class="btn-generate-schema"
+            :class="{ loading: loadingSchema }"
+          >
+            <span v-if="loadingSchema">🔄 {{ t('parserTab.generatingSchema') || '正在生成Schema...' }}</span>
+            <span v-else>🎯 {{ t('parserTab.generateSchema') || '生成初步Schema' }}</span>
+          </button>
+          <p v-if="schemaError" class="error-message">{{ schemaError }}</p>
+        </div>
+
+        <!-- 显示生成的字段（可编辑） -->
+        <div v-if="preliminarySchemaGenerated" class="fields-section">
+          <div class="schema-header">
+            <h3>{{ t('parserTab.generatedFields') || '生成的字段（可编辑）' }}</h3>
+            <button @click="resetSchema" class="btn-reset">🔄 {{ t('parserTab.regenerate') || '重新生成' }}</button>
+          </div>
+          <p class="hint">✏️ {{ t('parserTab.editFieldsHint') || '你可以删除不需要的字段，或添加新字段' }}</p>
+          <div class="fields-container">
+            <div v-for="(field, index) in fields" :key="index" class="field-row">
+              <input
+                v-model="field.name"
+                :placeholder="t('step2.fieldName')"
+                class="field-input"
+              />
+              <input
+                v-model="field.description"
+                :placeholder="t('step2.fieldDescription')"
+                class="field-input"
+              />
+              <select v-model="field.field_type" class="field-select">
+                <option value="string">{{ t('step2.types.string') }}</option>
+                <option value="int">{{ t('step2.types.int') }}</option>
+                <option value="float">{{ t('step2.types.float') }}</option>
+                <option value="bool">{{ t('step2.types.bool') }}</option>
+                <option value="array">{{ t('step2.types.array') }}</option>
+              </select>
+              <button @click="removeField(index)" class="btn-remove-small">✕</button>
+            </div>
+          </div>
+          <button @click="addField" class="btn-add-small">{{ t('step2.addField') }}</button>
+        </div>
+      </div>
     </section>
 
     <!-- 步骤3: 生成按钮 -->
@@ -255,7 +305,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import { useI18n } from '../i18n/index.js'
 import { parserAPI } from '../api/parser.js'
 
@@ -279,6 +329,12 @@ const allParsedData = ref([])  // 存储所有解析的数据
 const cancelling = ref(false)
 const ws = ref(null)
 
+// 新增：Schema生成相关状态
+const loadingSchema = ref(false)
+const schemaError = ref('')
+const preliminarySchemaGenerated = ref(false)
+const generatedSchema = ref(null)
+
 // Computed
 const sampleCount = computed(() => {
   if (inputMode.value === 'file') {
@@ -290,7 +346,11 @@ const sampleCount = computed(() => {
 
 const canGenerate = computed(() => {
   const hasInput = sampleCount.value > 0
-  const hasFields = schemaMode.value === 'auto' || fields.value.some(f => f.name.trim())
+  // predefined模式：需要有字段
+  // auto模式：需要已生成初步schema
+  const hasFields = schemaMode.value === 'predefined'
+    ? fields.value.some(f => f.name.trim())
+    : preliminarySchemaGenerated.value && fields.value.some(f => f.name.trim())
   return hasInput && hasFields
 })
 
@@ -374,6 +434,76 @@ function removeField(index) {
   }
 }
 
+// 生成初步Schema
+async function generatePreliminarySchema() {
+  loadingSchema.value = true
+  schemaError.value = ''
+
+  try {
+    // 准备HTML内容
+    let htmlContentsToSend = []
+    if (inputMode.value === 'file') {
+      htmlContentsToSend = uploadedFiles.value.map(f => f.content)
+    } else {
+      htmlContentsToSend = htmlContents.value.filter(h => h.trim())
+    }
+
+    if (htmlContentsToSend.length === 0) {
+      throw new Error('请先上传HTML文件或输入HTML源码')
+    }
+
+    // 调用API生成schema
+    const response = await fetch('http://localhost:8000/api/parser/generate-preliminary-schema', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        html_contents: htmlContentsToSend,
+        schema_mode: 'auto',
+        domain: 'web_parser'
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || 'Schema生成失败')
+    }
+
+    const data = await response.json()
+
+    if (data.success && data.fields) {
+      // 保存生成的schema
+      generatedSchema.value = data.schema
+
+      // 填充字段
+      fields.value = data.fields.map(field => ({
+        name: field.name,
+        description: field.description || '',
+        field_type: field.field_type || 'string'
+      }))
+
+      preliminarySchemaGenerated.value = true
+      console.log('Generated schema with', fields.value.length, 'fields')
+    } else {
+      throw new Error('Schema生成失败：返回数据格式错误')
+    }
+  } catch (err) {
+    console.error('Generate preliminary schema error:', err)
+    schemaError.value = err.message || '生成Schema失败，请重试'
+  } finally {
+    loadingSchema.value = false
+  }
+}
+
+// 重置Schema（重新生成）
+function resetSchema() {
+  preliminarySchemaGenerated.value = false
+  generatedSchema.value = null
+  fields.value = [{ name: '', description: '', field_type: 'string' }]
+  schemaError.value = ''
+}
+
 // 生成解析器
 async function generateParser() {
   loading.value = true
@@ -387,7 +517,8 @@ async function generateParser() {
   try {
     // 构建请求参数
     const params = {
-      schema_mode: schemaMode.value,
+      // 如果是auto模式且已生成初步schema，使用predefined模式
+      schema_mode: (schemaMode.value === 'auto' && preliminarySchemaGenerated.value) ? 'predefined' : schemaMode.value,
       domain: 'web_parser',
       iteration_rounds: 3
     }
@@ -399,8 +530,8 @@ async function generateParser() {
       params.html_contents = htmlContents.value.filter(h => h.trim())
     }
 
-    // 添加字段（predefined模式）
-    if (schemaMode.value === 'predefined') {
+    // 添加字段（predefined模式 或 auto模式+已生成schema）
+    if (schemaMode.value === 'predefined' || (schemaMode.value === 'auto' && preliminarySchemaGenerated.value)) {
       params.fields = fields.value.filter(f => f.name.trim())
       if (params.fields.length === 0) {
         throw new Error(t('messages.fieldRequired'))
@@ -728,6 +859,24 @@ function formatCellValue(value) {
   const stringValue = String(value)
   return stringValue.length > 100 ? stringValue.substring(0, 100) + '...' : stringValue
 }
+
+// 监听schemaMode变化，重置preliminary schema状态
+watch(schemaMode, (newMode, oldMode) => {
+  if (newMode !== oldMode && newMode === 'auto') {
+    // 切换到auto模式时，重置schema生成状态
+    preliminarySchemaGenerated.value = false
+    generatedSchema.value = null
+    fields.value = [{ name: '', description: '', field_type: 'string' }]
+    schemaError.value = ''
+  } else if (newMode === 'predefined') {
+    // 切换到predefined模式时，也重置
+    preliminarySchemaGenerated.value = false
+    generatedSchema.value = null
+    if (fields.value.length === 0 || (fields.value.length === 1 && !fields.value[0].name)) {
+      fields.value = [{ name: '', description: '', field_type: 'string' }]
+    }
+  }
+})
 
 // 清理
 onUnmounted(() => {
@@ -1104,6 +1253,74 @@ onUnmounted(() => {
 .fields-section h3 {
   margin-bottom: 15px;
   color: #667eea;
+}
+
+/* 自动模式 Schema 生成 */
+.auto-mode-section {
+  margin-top: 20px;
+}
+
+.generate-schema-section {
+  text-align: center;
+  padding: 30px;
+  background: #f8f9ff;
+  border-radius: 12px;
+  border: 2px dashed #667eea;
+}
+
+.btn-generate-schema {
+  width: 100%;
+  max-width: 400px;
+  padding: 18px;
+  margin-top: 15px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.3s;
+}
+
+.btn-generate-schema:hover:not(:disabled) {
+  transform: scale(1.02);
+}
+
+.btn-generate-schema:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-generate-schema.loading {
+  animation: pulse 1.5s infinite;
+}
+
+.schema-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.schema-header h3 {
+  margin: 0;
+  color: #667eea;
+}
+
+.btn-reset {
+  padding: 8px 16px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+
+.btn-reset:hover {
+  background: #d97706;
 }
 
 /* 进度部分 */

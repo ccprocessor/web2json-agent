@@ -11,11 +11,11 @@ __email__ = "1041206149@qq.com"
 # 导入简洁API
 from web2json.simple import (
     Web2JsonConfig,
-    extract_html_to_json,
-    infer_html_to_schema,
-    generate_html_parser,
-    parse_html_with_parser,
-    cluster_html_files
+    extract_data,
+    extract_schema,
+    infer_code,
+    extract_data_with_code,
+    classify_html_dir
 )
 
 __all__ = [
@@ -23,9 +23,9 @@ __all__ = [
     "__author__",
     "__email__",
     "Web2JsonConfig",
-    "extract_html_to_json",
-    "infer_html_to_schema",
-    "generate_html_parser",
-    "parse_html_with_parser",
-    "cluster_html_files"
+    "extract_data",
+    "extract_schema",
+    "infer_code",
+    "extract_data_with_code",
+    "classify_html_dir"
 ]

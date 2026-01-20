@@ -254,7 +254,10 @@ def cmd_generate(args):
         return
 
     # 创建Agent
-    agent = ParserAgent(output_dir=args.output)
+    agent = ParserAgent(
+        output_dir=args.output,
+        enable_schema_edit=getattr(args, 'enable_schema_edit', False)
+    )
 
     # 生成解析器
     result = agent.generate_parser(
@@ -262,7 +265,8 @@ def cmd_generate(args):
         domain=args.domain,
         iteration_rounds=getattr(args, 'iteration_rounds', None),
         schema_mode=schema_mode,
-        schema_template=schema_template
+        schema_template=schema_template,
+        enable_schema_edit=getattr(args, 'enable_schema_edit', False)
     )
 
     # 输出结果
@@ -362,6 +366,11 @@ def main():
         '--interactive-schema',
         action='store_true',
         help='交互式输入模式：提示用户输入需要提取的字段名，自动生成schema模板'
+    )
+    parser.add_argument(
+        '--enable-schema-edit',
+        action='store_true',
+        help='启用Schema手动编辑模式：在schema生成后暂停，允许用户手动编辑'
     )
     parser.add_argument(
         '--cluster',
