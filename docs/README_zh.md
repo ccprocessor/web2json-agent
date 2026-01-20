@@ -15,6 +15,12 @@
 
 ---
 
+## 📖 什么是 web2json-agent？
+
+基于 AI 的智能网页解析代理，从 HTML 样本自动生成生产级解析器代码，无需手写 XPath/CSS 选择器。
+
+---
+
 ## 📋 DEMO
 
 
@@ -70,35 +76,36 @@ web2json setup
 
 ## 🐍 API 使用
 
-Web2JSON 提供四个简单的 API，适用于不同的使用场景。
+Web2JSON 提供五个简单的 API，适用于不同的使用场景。所有示例都可以直接运行！
 
-### 示例 1：直接获取结构化数据
+### API 1: `extract_data` - 完整工作流
 
-**自动模式** - 让 Agent 自动筛选字段并提取数据：
+一步从 HTML 提取结构化数据（schema + parser + data）。
+
+**自动模式** - 让 AI 自动发现并提取字段：
 
 ```python
-from web2json import Web2JsonConfig, extract_html_to_json
+from web2json import Web2JsonConfig, extract_data
 
 config = Web2JsonConfig(
     name="my_project",
     html_path="html_samples/",
     output_path="output/"
+    # enable_schema_edit=True  # 取消注释以手动编辑 schema
 )
 
-result = extract_html_to_json(config)
+result_dir = extract_data(config)
 # 输出：output/my_project/result/*.json
-print(f"✓ 结果已保存至：{result}")
 ```
 
 **预定义模式** - 仅提取指定字段：
 
 ```python
-from web2json import Web2JsonConfig, extract_html_to_json
+from web2json import Web2JsonConfig, extract_data
 
 config = Web2JsonConfig(
     name="articles",
     html_path="html_samples/",
-    output_path="output/",
     schema={
         "title": "string",
         "author": "string",
@@ -107,129 +114,124 @@ config = Web2JsonConfig(
     }
 )
 
-result = extract_html_to_json(config)
+result_dir = extract_data(config)
 # 输出：output/articles/result/*.json
-print(f"✓ 结果已保存至：{result}")
 ```
 
 ---
 
-### 示例 2：生成可重用解析器
+### API 2: `extract_schema` - 仅提取 Schema
 
-生成一次解析器，多次使用：
+生成描述 HTML 数据结构的 JSON schema。
 
 ```python
-from web2json import Web2JsonConfig, generate_html_parser
+from web2json import Web2JsonConfig, extract_schema
 
 config = Web2JsonConfig(
-    name="product_parser",
-    html_path="training_samples/",
-    output_path="parsers/"
+    name="schema_only",
+    html_path="html_samples/",
+    iteration_rounds=3
+    # enable_schema_edit=True  # 取消注释以手动编辑 schema
 )
 
-parser_path = generate_html_parser(config)
-# 输出：parsers/product_parser/final_parser.py
-print(f"✓ 解析器已保存：{parser_path}")
+schema_path = extract_schema(config)
+# 输出：output/schema_only/final_schema.json
 ```
 
 ---
 
-### 示例 3：使用现有解析器解析
+### API 3: `infer_code` - 生成解析器代码
 
-在新的 HTML 文件上重用已训练的解析器：
+从现有 schema 生成解析器代码。
 
 ```python
-from web2json import Web2JsonConfig, parse_html_with_parser
+from web2json import infer_code
 
-config = Web2JsonConfig(
-    name="batch_001",
+parser_path = infer_code(
+    schema_path="output/schema_only/final_schema.json",
+    html_path="html_samples/",
+    name="my_parser"
+)
+# 输出：output/my_parser/final_parser.py
+```
+
+---
+
+### API 4: `extract_data_with_code` - 使用代码解析
+
+使用解析器代码从 HTML 文件提取数据。
+
+```python
+from web2json import extract_data_with_code
+
+# 读取解析器代码
+with open("output/my_parser/final_parser.py") as f:
+    parser_code = f.read()
+
+result_dir = extract_data_with_code(
+    parser_code=parser_code,
     html_path="new_html_files/",
-    output_path="results/",
-    parser_path="parsers/product_parser/final_parser.py"
+    name="batch_001"
 )
-
-result = parse_html_with_parser(config)
-# 输出：results/batch_001/result/*.json
-print(f"✓ 解析数据已保存至：{result}")
+# 输出：output/batch_001/result/*.json
 ```
 
 ---
 
-### 示例 4：仅生成 Schema
+### API 5: `classify_html_dir` - 按布局分类 HTML
 
-生成包含字段描述和 XPath 的JSON Schema
-
-```python
-from web2json import Web2JsonConfig, infer_html_to_schema
-import json
-
-config = Web2JsonConfig(
-    name="schema_exploration",
-    html_path="html_samples/",
-    output_path="schemas/"
-)
-
-schema_path = infer_html_to_schema(config)
-# 输出：schemas/schema_exploration/final_schema.json
-
-# 查看学习到的 schema
-with open(schema_path) as f:
-    schema = json.load(f)
-    print(json.dumps(schema, indent=2))
-```
-
----
-### 示例 5: HTML文件聚类
-
-将具有不同布局的HTML文件分组到单独的目录中（每个目录只需调用一次Agent）：
+按布局相似度对 HTML 文件分组（适用于混合布局数据集）。
 
 ```python
-from web2json import Web2JsonConfig, cluster_html_files
+from web2json import classify_html_dir
 
-config = Web2JsonConfig(
-    name="clustered_pages",
-    html_path="html_samples/",
-    output_path="output/"
+result = classify_html_dir(
+    html_path="mixed_html/",
+    name="classified"
 )
-
-result = cluster_html_files(config)
-# Output: output/clustered_pages/cluster_0/, cluster_1/, noise/, cluster_info.txt
-print(f"✓ Found {len(result['clusters'])} layout types")
-print(f"✓ Cluster info: {result['cluster_info_file']}")
+# 输出：output/classified/cluster_0/, cluster_1/, cluster_info.txt
 ```
 
 ---
 
 ### 配置参数参考
 
+**Web2JsonConfig 参数：**
+
 | 参数 | 类型 | 默认值 | 说明 |
 |-----------|------|---------|-------------|
 | `name` | `str` | 必需 | 项目名称（创建子目录） |
-| `html_path` | `str` | 必需 | HTML 文件所在目录 |
+| `html_path` | `str` | 必需 | HTML 目录路径 |
 | `output_path` | `str` | `"output"` | 输出目录 |
 | `iteration_rounds` | `int` | `3` | 用于学习的样本数量 |
-| `schema` | `Dict` | `None` | 预定义字段（None = 自动模式） |
-| `parser_path` | `str` | `None` | 解析器文件（用于 `parse_html_with_parser`） |
+| `schema` | `Dict` | `None` | 预定义 schema（None = 自动模式） |
+| `enable_schema_edit` | `bool` | `False` | 启用手动编辑 schema |
+
+**独立 API 参数：**
+
+| API | 参数 | 说明 |
+|-----|------|------|
+| `infer_code` | `schema_path`, `html_path`, `name` | 从 schema 生成解析器 |
+| `extract_data_with_code` | `parser_code`, `html_path`, `name` | 使用代码字符串解析 |
+| `classify_html_dir` | `html_path`, `name` | 按布局分类 |
 
 ---
 
 ### 应该使用哪个 API？
 
 ```python
-# 需要立即获取 JSON 数据？ → extract_html_to_json
-extract_html_to_json(config)
+# 需要立即获取数据？ → extract_data
+extract_data(config)
 
-# 想先查看 schema？ → infer_html_to_schema
-infer_html_to_schema(config)
+# 想先查看/编辑 schema？ → extract_schema + infer_code
+schema = extract_schema(config)
+parser = infer_code(schema_path=schema, html_path="...")
 
-# 需要可重用的解析器？ → generate_html_parser
-generate_html_parser(config)
+# 已有解析器代码，需要解析更多文件？ → extract_data_with_code
+extract_data_with_code(parser_code=code, html_path="...")
 
-# 已有解析器，需要解析更多文件？ → parse_html_with_parser
-parse_html_with_parser(config)
-
-# 输入的HTML来自不同域名/有不同的布局? → cluster_html_files
-cluster_html_files(config)
+# 混合布局（列表页 + 详情页）？ → classify_html_dir
+classify_html_dir(html_path="...")
 ```
 
 ---
