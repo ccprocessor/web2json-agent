@@ -18,8 +18,8 @@
 ## 📋 Demo
 
 
-https://github.com/user-attachments/assets/6eec23d4-5bf1-4837-af70-6f0a984d5464
 
+https://github.com/user-attachments/assets/c82e8e13-fc42-4d1f-a81a-4cec6e3f434b
 
 ---
 
