@@ -22,8 +22,16 @@ fi
 # Start the backend
 echo "📡 Starting backend API (port 8000)..."
 cd /Users/brown/Projects/AILabProject/web2json-agent
+
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
 # Production Mode: Disable automatic reloading to avoid restarts triggered by changes in the output directory
+# If you need reload for development, use: --reload --reload-exclude 'output/**' --reload-exclude 'logs/**'
 uvicorn web2json_api.main:app --host 0.0.0.0 --port 8000 \
+  --reload-exclude 'output/**' \
+  --reload-exclude 'logs/**' \
+  --reload-exclude '*.log' \
   > logs/api.log 2>&1 &
 BACKEND_PID=$!
 echo "   Backend PID: $BACKEND_PID"

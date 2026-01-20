@@ -350,3 +350,123 @@ async def get_task_results(task_id: str):
         "count": len(all_results),
         "results": all_results
     })
+
+
+@router.post("/generate-preliminary-schema")
+async def generate_preliminary_schema(request: ParserGenerateRequest):
+    """
+    生成初步Schema（仅执行Schema阶段，不生成代码）
+
+    **功能：**
+    - 分析HTML文件，提取初步的schema
+    - 返回字段列表供用户编辑
+    - 不执行代码生成阶段
+
+    **使用场景：**
+    - 自动模式下，用户想先预览和编辑schema
+    - 生成schema后，用户可以添加/删除字段
+    - 编辑后的schema可用于最终的parser生成
+
+    **返回：**
+    - schema: Dict，包含字段定义
+    - fields: List[Dict]，转换为前端字段格式
+    """
+    from web2json.agent.orchestrator import ParserAgent
+    from web2json.agent.planner import AgentPlanner
+    import tempfile
+    import shutil
+
+    try:
+        # 创建临时输出目录
+        temp_dir = Path(tempfile.mkdtemp(prefix="schema_gen_"))
+
+        # 准备HTML文件
+        html_files = []
+        if request.html_contents:
+            for i, html_content in enumerate(request.html_contents):
+                html_file = temp_dir / f"sample_{i+1}.html"
+                html_file.write_text(html_content, encoding='utf-8')
+                html_files.append(str(html_file))
+
+        if not html_files:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one HTML source is required"
+            )
+
+        # 创建Agent（使用auto模式）
+        agent = ParserAgent(
+            output_dir=str(temp_dir),
+            schema_mode="auto"
+        )
+
+        # 只执行schema阶段
+        logger.info(f"Generating preliminary schema from {len(html_files)} HTML files")
+
+        # 创建执行计划
+        planner = AgentPlanner()
+        plan = planner.create_plan(
+            html_files=html_files,
+            domain=request.domain or "web_parser",
+            iteration_rounds=min(len(html_files), 3)  # 最多使用3个样本
+        )
+
+        # 只执行schema阶段
+        sample_urls = plan['sample_urls']
+        schema_result = agent.executor.schema_phase.execute(sample_urls)
+
+        if not schema_result['success']:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate schema"
+            )
+
+        final_schema = schema_result['final_schema']
+
+        # 将schema转换为前端字段格式
+        fields = []
+        for field_name, field_info in final_schema.items():
+            fields.append({
+                "name": field_name,
+                "description": field_info.get("description", ""),
+                "field_type": _map_type_to_frontend(field_info.get("type", "string"))
+            })
+
+        # 清理临时目录
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+        logger.info(f"Generated schema with {len(fields)} fields")
+
+        return JSONResponse(content={
+            "success": True,
+            "schema": final_schema,
+            "fields": fields,
+            "count": len(fields)
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to generate preliminary schema: {e}", exc_info=True)
+        # 清理临时目录
+        if 'temp_dir' in locals():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate schema: {str(e)}"
+        )
+
+
+def _map_type_to_frontend(schema_type: str) -> str:
+    """将schema类型映射到前端类型"""
+    type_mapping = {
+        "str": "string",
+        "string": "string",
+        "int": "int",
+        "integer": "int",
+        "float": "float",
+        "number": "float",
+        "bool": "bool",
+        "boolean": "bool",
+        "list": "array",
+        "array": "array",
+    }
+    return type_mapping.get(schema_type.lower(), "string")

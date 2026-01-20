@@ -1,0 +1,28 @@
+{
+  "title": {
+    "type": "string",
+    "description": "问题标题",
+    "value_sample": "科学家发现用丝瓜络制作战机隐身涂层，可吸收 99.99% 雷达信号，是什么原理？会降低隐身战机成本吗？",
+    "xpaths": [
+      "//h1[@class='QuestionHeader-title']/text()"
+    ]
+  },
+  "question_author": {
+    "type": "string",
+    "description": "提问者名称",
+    "value_sample": "观察者网",
+    "xpaths": [
+      "//div[@class='QuestionAuthor']//span[@class='UserLink AuthorInfo-name']/a[@class='UserLink-link']/text()"
+    ]
+  },
+  "question_author_badge": {
+    "type": "string",
+    "description": "提问者认证信息",
+    "value_sample": "已认证机构号",
+    "xpaths": [
+      "//div[@class='QuestionAuthor']//div[@class='ztext AuthorInfo-badgeText css-0']/text()",
+      "//div[@class='QuestionAuthor']//div[@class='AuthorInfo-badge']//div[contains(@class, 'AuthorInfo-badgeText')]/text()"
+    ]
+  }
+
+}

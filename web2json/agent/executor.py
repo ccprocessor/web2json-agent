@@ -14,12 +14,13 @@ from .processors import (
     ParserProcessor,
 )
 from .phases import SchemaPhase, CodePhase
+from web2json.utils.schema_editor import SchemaEditor
 
 
 class AgentExecutor:
     """Agent 执行器 - 负责阶段编排"""
 
-    def __init__(self, output_dir: str = "output", schema_mode: str = "auto", schema_template: Dict = None, progress_callback=None):
+    def __init__(self, output_dir: str = "output", schema_mode: str = "auto", schema_template: Dict = None, enable_schema_edit: bool = False, progress_callback=None):
         """
         初始化执行器
 
@@ -27,12 +28,14 @@ class AgentExecutor:
             output_dir: 输出目录
             schema_mode: Schema模式 (auto: 自动提取, predefined: 使用预定义模板)
             schema_template: 预定义的Schema模板（当schema_mode=predefined时使用）
+            enable_schema_edit: 是否启用Schema手动编辑模式
             progress_callback: 进度回调函数 callback(phase, step, percentage)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.schema_mode = schema_mode
         self.schema_template = schema_template
+        self.enable_schema_edit = enable_schema_edit
         self.progress_callback = progress_callback
 
         # 创建子目录
@@ -108,6 +111,7 @@ class AgentExecutor:
         执行计划 - 两阶段迭代
 
         阶段1: Schema迭代（前N个URL）- 获取HTML -> 提取/优化JSON Schema
+        阶段1.5: Schema编辑（可选）- 用户手动编辑schema
         阶段2: 代码迭代（前N个URL）- 基于最终Schema生成代码 -> 验证 -> 优化代码
 
         Args:
@@ -139,6 +143,16 @@ class AgentExecutor:
         final_schema = schema_result['final_schema']
         logger.success(f"Schema阶段完成，最终Schema包含 {len(final_schema)} 个字段")
 
+        # ============ 阶段 1.5: Schema 编辑（可选）============
+        if self.enable_schema_edit:
+            final_schema = self._handle_schema_editing(
+                original_schema=final_schema,
+                schema_path=schema_result['final_schema_path'],
+                sample_urls=sample_urls
+            )
+            # 更新结果中的final_schema
+            results['schema_phase']['final_schema'] = final_schema
+
         # ============ 阶段 2: 代码迭代 ============
         code_result = self.code_phase.execute(
             final_schema=final_schema,
@@ -153,6 +167,60 @@ class AgentExecutor:
             logger.error("代码迭代阶段失败")
 
         return results
+
+    def _handle_schema_editing(self, original_schema: Dict, schema_path: str, sample_urls: List[str]) -> Dict:
+        """
+        处理Schema编辑流程
+
+        Args:
+            original_schema: 原始schema
+            schema_path: schema文件路径
+            sample_urls: 样本URL列表（用于重新生成schema）
+
+        Returns:
+            最终的schema（编辑后或重新生成后）
+        """
+        # 等待用户编辑
+        edited_schema = SchemaEditor.wait_for_user_edit(schema_path)
+
+        # 检测字段变化
+        SchemaEditor.print_field_changes(original_schema, edited_schema)
+
+        # 检查是否有新增字段
+        has_new_fields = SchemaEditor.has_new_fields(original_schema, edited_schema)
+
+        if has_new_fields:
+            logger.info("\n检测到新增字段，将使用编辑后的schema作为预定义模板，重新执行schema生成...")
+
+            # 保存当前的schema_mode和template
+            original_mode = self.schema_processor.schema_mode
+            original_template = self.schema_processor.schema_template
+
+            # 切换到predefined模式，使用编辑后的schema作为模板
+            self.schema_processor.schema_mode = 'predefined'
+            self.schema_processor.schema_template = edited_schema
+
+            # 重新执行schema phase
+            logger.info(f"\n{'='*70}")
+            logger.info(f"重新执行Schema生成（预定义模式）")
+            logger.info(f"{'='*70}")
+
+            regenerated_result = self.schema_phase.execute(sample_urls)
+
+            # 恢复原始配置
+            self.schema_processor.schema_mode = original_mode
+            self.schema_processor.schema_template = original_template
+
+            if regenerated_result['success']:
+                final_schema = regenerated_result['final_schema']
+                logger.success(f"Schema重新生成完成，最终Schema包含 {len(final_schema)} 个字段")
+                return final_schema
+            else:
+                logger.error("Schema重新生成失败，使用编辑后的schema")
+                return edited_schema
+        else:
+            logger.info("\n未检测到新增字段，直接使用编辑后的schema进入代码迭代阶段")
+            return edited_schema
 
     def parse_all_html_files(self, html_files: List[str], parser_path: str) -> Dict:
         """
