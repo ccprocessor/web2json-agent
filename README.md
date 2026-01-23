@@ -76,7 +76,7 @@ web2json setup
 
 ## 🐍 API Usage
 
-Web2JSON provides five simple APIs for different use cases. All examples are ready to run!
+Web2JSON provides five simple APIs. Perfect for databases, APIs, and real-time processing!
 
 ### API 1: `extract_data` - Complete Workflow
 
@@ -90,19 +90,20 @@ from web2json import Web2JsonConfig, extract_data
 config = Web2JsonConfig(
     name="my_project",
     html_path="html_samples/",
-    output_path="output/"
+    # iteration_rounds=3  # default 3
     # enable_schema_edit=True  # Uncomment to manually edit schema
 )
 
-result_dir = extract_data(config)
-# Output: output/my_project/result/*.json
+result = extract_data(config)
+
+# print(result.final_schema)        # Dict: extracted schema
+# print(result.parser_code)          # str: generated parser code
+# print(result.parsed_data[0])       # List[Dict]: parsed JSON data
 ```
 
 **Predefined Mode** - Extract only specific fields:
 
 ```python
-from web2json import Web2JsonConfig, extract_data
-
 config = Web2JsonConfig(
     name="articles",
     html_path="html_samples/",
@@ -114,8 +115,8 @@ config = Web2JsonConfig(
     }
 )
 
-result_dir = extract_data(config)
-# Output: output/articles/result/*.json
+result = extract_data(config)
+# Returns: ExtractDataResult with schema, code, and data
 ```
 
 ---
@@ -130,29 +131,39 @@ from web2json import Web2JsonConfig, extract_schema
 config = Web2JsonConfig(
     name="schema_only",
     html_path="html_samples/",
-    iteration_rounds=3
+    # iteration_rounds=3
     # enable_schema_edit=True  # Uncomment to manually edit schema
 )
 
-schema_path = extract_schema(config)
-# Output: output/schema_only/final_schema.json
+result = extract_schema(config)
+
+# print(result.final_schema)         # Dict: final schema
+# print(result.intermediate_schemas) # List[Dict]: iteration history
 ```
 
 ---
 
 ### API 3: `infer_code` - Generate Parser Code
 
-Generate parser code from an existing schema.
+Generate parser code from a schema (Dict or from previous step).
 
 ```python
 from web2json import infer_code
 
-parser_path = infer_code(
-    schema_path="output/schema_only/final_schema.json",
-    html_path="html_samples/",
-    name="my_parser"
+# Use schema from previous step or define manually
+my_schema = {
+    "title": "string",
+    "author": "string",
+    "content": "string"
+}
+
+result = infer_code(
+    schema=my_schema,
+    html_path="html_samples/"
 )
-# Output: output/my_parser/final_parser.py
+
+# print(result.parser_code)  # str: BeautifulSoup parser code
+# print(result.schema)       # Dict: schema used
 ```
 
 ---
@@ -164,16 +175,21 @@ Use parser code to extract data from HTML files.
 ```python
 from web2json import extract_data_with_code
 
-# Read parser code
-with open("output/my_parser/final_parser.py") as f:
-    parser_code = f.read()
+# Parser code from previous step or loaded from file
+parser_code = """
+def parse_html(html_content):
+    # ... parser implementation
+"""
 
-result_dir = extract_data_with_code(
+result = extract_data_with_code(
     parser_code=parser_code,
-    html_path="new_html_files/",
-    name="batch_001"
+    html_path="new_html_files/"
 )
-# Output: output/batch_001/result/*.json
+
+# print(f"Success: {result.success_count}, Failed: {result.failed_count}")
+# for item in result.parsed_data:
+#     print(f"File: {item['filename']}")
+#     print(f"Data: {item['data']}")
 ```
 
 ---
@@ -185,11 +201,15 @@ Group HTML files by layout similarity (for mixed-layout datasets).
 ```python
 from web2json import classify_html_dir
 
-result = classify_html_dir(
-    html_path="mixed_html/",
-    name="classified"
-)
-# Output: output/classified/cluster_0/, cluster_1/, cluster_info.txt
+result = classify_html_dir(html_path="mixed_html/")
+
+# print(f"Found {result.cluster_count} layout types")
+# print(f"Noise files: {len(result.noise_files)}")
+
+# for cluster_name, files in result.clusters.items():
+#     print(f"{cluster_name}: {len(files)} files")
+#     for file in files[:3]:
+#         print(f"  - {file}")
 ```
 
 ---
@@ -200,20 +220,26 @@ result = classify_html_dir(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `name` | `str` | Required | Project name (creates subdirectory) |
-| `html_path` | `str` | Required | HTML directory path |
-| `output_path` | `str` | `"output"` | Output directory |
+| `name` | `str` | Required | Project name (for identification) |
+| `html_path` | `str` | Required | HTML directory or file path |
 | `iteration_rounds` | `int` | `3` | Number of samples for learning |
 | `schema` | `Dict` | `None` | Predefined schema (None = auto mode) |
 | `enable_schema_edit` | `bool` | `False` | Enable manual schema editing |
 
 **Standalone API Parameters:**
 
-| API | Parameters | Description |
-|-----|------------|-------------|
-| `infer_code` | `schema_path`, `html_path`, `name` | Generate parser from schema |
-| `extract_data_with_code` | `parser_code`, `html_path`, `name` | Parse with code string |
-| `classify_html_dir` | `html_path`, `name` | Classify by layout |
+| API | Parameters | Returns |
+|-----|------------|---------|
+| `extract_data` | `config: Web2JsonConfig` | `ExtractDataResult` |
+| `extract_schema` | `config: Web2JsonConfig` | `ExtractSchemaResult` |
+| `infer_code` | `schema: Dict, html_path: str` | `InferCodeResult` |
+| `extract_data_with_code` | `parser_code: str, html_path: str` | `ParseResult` |
+| `classify_html_dir` | `html_path: str` | `ClusterResult` |
+
+**All result objects provide:**
+- Direct access to data via object attributes
+- `.to_dict()` method for serialization
+- `.get_summary()` method for quick stats
 
 ---
 
@@ -221,17 +247,19 @@ result = classify_html_dir(
 
 ```python
 # Need data immediately? → extract_data
-extract_data(config)
+result = extract_data(config)
+print(result.parsed_data)
 
 # Want to review/edit schema first? → extract_schema + infer_code
-schema = extract_schema(config)
-parser = infer_code(schema_path=schema, html_path="...")
+schema_result = extract_schema(config)
+code_result = infer_code(schema=schema_result.final_schema, html_path="...")
+data_result = extract_data_with_code(parser_code=code_result.parser_code, ...)
 
 # Have parser code, need to parse more files? → extract_data_with_code
-extract_data_with_code(parser_code=code, html_path="...")
+result = extract_data_with_code(parser_code=my_parser_code, html_path="...")
 
 # Mixed layouts (list + detail pages)? → classify_html_dir
-classify_html_dir(html_path="...")
+result = classify_html_dir(html_path="...")
 ```
 
 ---

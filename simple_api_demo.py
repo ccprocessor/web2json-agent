@@ -32,8 +32,7 @@ def demo_extract_data():
     config = Web2JsonConfig(
         name="demo_auto",
         html_path="input_html/",
-        iteration_rounds=1,
-        enable_schema_edit = True
+        # iteration_rounds=3
     )
 
     result = extract_data(config)
