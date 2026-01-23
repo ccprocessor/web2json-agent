@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "web2json-agent"
-version = "1.1.3"
+version = "1.1.4"
 description = "Web Structured Data Extraction Agent"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,7 +18,9 @@ keywords = [
     "ai agent",
     "code generation",
     "langchain",
-    "web automation"
+    "web automation",
+    "data pipeline",
+    "structured data"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

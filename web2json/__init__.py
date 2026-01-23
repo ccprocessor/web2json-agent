@@ -1,31 +1,47 @@
 """
 web2json-agent - 智能网页解析代码生成器
 
-基于 AI 自动生成网页解析代码，告别手写 XPath 和 CSS 选择器
+基于 AI 自动生成网页解析代码，返回纯内存数据对象，无需磁盘读写
 """
 
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 __author__ = "YangGuoqiang"
 __email__ = "1041206149@qq.com"
 
 # 导入简洁API
 from web2json.simple import (
+    # 配置类
     Web2JsonConfig,
+    # API函数
     extract_data,
     extract_schema,
     infer_code,
     extract_data_with_code,
-    classify_html_dir
+    classify_html_dir,
+    # 返回数据类
+    ExtractDataResult,
+    ExtractSchemaResult,
+    InferCodeResult,
+    ParseResult,
+    ClusterResult
 )
 
 __all__ = [
     "__version__",
     "__author__",
     "__email__",
+    # 配置类
     "Web2JsonConfig",
+    # API函数
     "extract_data",
     "extract_schema",
     "infer_code",
     "extract_data_with_code",
-    "classify_html_dir"
+    "classify_html_dir",
+    # 返回数据类
+    "ExtractDataResult",
+    "ExtractSchemaResult",
+    "InferCodeResult",
+    "ParseResult",
+    "ClusterResult"
 ]
