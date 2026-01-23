@@ -249,6 +249,7 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
     # 创建临时输出目录（用于Agent内部处理，最后会清理）
     import tempfile
     import shutil
+    import os
     temp_output_dir = tempfile.mkdtemp(prefix="web2json_")
     output_path = Path(temp_output_dir)
 
@@ -261,27 +262,99 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
             schema_mode = "auto"
             schema_template = None
 
-        # 创建Agent并执行完整流程
-        agent = ParserAgent(output_dir=str(output_path))
-        result = agent.generate_parser(
-            html_files=html_files,
-            iteration_rounds=config.iteration_rounds,
-            schema_mode=schema_mode,
-            schema_template=schema_template,
-            enable_schema_edit=config.enable_schema_edit
-        )
+        # 如果启用schema编辑，先生成schema，复制到当前目录让用户编辑
+        if config.enable_schema_edit and config.is_auto_mode():
+            logger.info("启用Schema编辑模式，将在当前目录生成schema文件供编辑")
 
-        if not result['success']:
-            error_msg = result.get('error', '未知错误')
-            raise Exception(f"执行失败: {error_msg}")
+            # 步骤1: 先生成schema（不启用编辑）
+            agent = ParserAgent(output_dir=str(output_path))
+            from web2json.agent.planner import AgentPlanner
+            planner = AgentPlanner()
+            plan = planner.create_plan(html_files, iteration_rounds=config.iteration_rounds)
+
+            # 执行schema生成
+            schema_result = agent.executor.schema_phase.execute(plan['sample_urls'])
+            if not schema_result.get('success', False):
+                raise Exception(f"Schema生成失败: {schema_result.get('error', '未知错误')}")
+
+            # 步骤2: 将schema复制到当前目录
+            schema_file = Path(schema_result.get('final_schema_path'))
+            current_dir_schema = Path.cwd() / "schema_for_edit.json"
+            shutil.copy2(schema_file, current_dir_schema)
+
+            # 步骤3: 等待用户编辑
+            logger.info("="*70)
+            logger.info(f"Schema文件已生成: {current_dir_schema}")
+            logger.info("")
+            logger.info("请按以下步骤操作:")
+            logger.info(f"  1. 打开文件进行编辑: {current_dir_schema}")
+            logger.info("  2. 编辑完成后保存文件")
+            logger.info("  3. 在此处按回车键继续...")
+            logger.info("="*70)
+            input()
+
+            # 步骤4: 读取编辑后的schema
+            with open(current_dir_schema, 'r', encoding='utf-8') as f:
+                edited_schema = json.load(f)
+
+            logger.info("✓ 已读取编辑后的Schema")
+            logger.info(f"  Schema包含 {len(edited_schema)} 个字段")
+
+            # 步骤5: 继续生成parser和解析数据（使用编辑后的schema）
+            agent.executor.final_schema = edited_schema
+
+            # 执行代码生成阶段
+            code_result = agent.executor.code_phase.execute(
+                final_schema=edited_schema,
+                schema_phase_rounds=schema_result['rounds']
+            )
+
+            if not code_result.get('success', False):
+                raise Exception(f"代码生成失败: {code_result.get('error', '未知错误')}")
+
+            # 批量解析
+            parser_path = code_result.get('final_parser', {}).get('parser_path')
+            parse_result = agent.executor.parse_all_html_files(
+                html_files=html_files,
+                parser_path=parser_path
+            )
+
+            if not parse_result.get('success', False):
+                raise Exception(f"批量解析失败: {parse_result.get('error', '未知错误')}")
+
+            # 清理当前目录的schema文件
+            if current_dir_schema.exists():
+                os.remove(current_dir_schema)
+                logger.info(f"✓ 已清理临时schema文件")
+
+            # 构造result对象（模拟generate_parser的返回）
+            result = {
+                'success': True,
+                'results_dir': parse_result.get('output_dir')
+            }
+            final_schema = edited_schema
+        else:
+            # 正常流程：直接调用generate_parser
+            agent = ParserAgent(output_dir=str(output_path))
+            result = agent.generate_parser(
+                html_files=html_files,
+                iteration_rounds=config.iteration_rounds,
+                schema_mode=schema_mode,
+                schema_template=schema_template,
+                enable_schema_edit=False  # 不使用内置的编辑模式
+            )
+
+            if not result['success']:
+                error_msg = result.get('error', '未知错误')
+                raise Exception(f"执行失败: {error_msg}")
+
+            # 读取final_schema
+            schema_file = output_path / "schemas" / "final_schema.json"
+            with open(schema_file, 'r', encoding='utf-8') as f:
+                final_schema = json.load(f)
 
         # 读取生成的文件到内存
-        # 1. 读取final_schema
-        schema_file = output_path / "schemas" / "final_schema.json"
-        with open(schema_file, 'r', encoding='utf-8') as f:
-            final_schema = json.load(f)
-
-        # 2. 读取parser代码
+        # 读取parser代码
         parser_file = output_path / "parsers" / "final_parser.py"
         with open(parser_file, 'r', encoding='utf-8') as f:
             parser_code = f.read()
@@ -364,6 +437,7 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
     # 创建临时输出目录
     import tempfile
     import shutil
+    import os
     temp_output_dir = tempfile.mkdtemp(prefix="web2json_schema_")
     output_path = Path(temp_output_dir)
 
@@ -389,18 +463,52 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
         with open(schema_path, 'r', encoding='utf-8') as f:
             final_schema = json.load(f)
 
-        # 如果启用人工编辑模式，等待用户编辑
+        # 如果启用人工编辑模式，将schema复制到当前目录让用户编辑
         if config.enable_schema_edit:
-            from web2json.utils.schema_editor import SchemaEditor
+            # 将schema复制到当前目录
+            current_dir_schema = Path.cwd() / "schema_for_edit.json"
+            with open(current_dir_schema, 'w', encoding='utf-8') as f:
+                json.dump(final_schema, f, indent=2, ensure_ascii=False)
 
             # 等待用户编辑
-            edited_schema = SchemaEditor.wait_for_user_edit(schema_path)
+            logger.info("="*70)
+            logger.info(f"Schema文件已生成: {current_dir_schema}")
+            logger.info("")
+            logger.info("请按以下步骤操作:")
+            logger.info(f"  1. 打开文件进行编辑: {current_dir_schema}")
+            logger.info("  2. 编辑完成后保存文件")
+            logger.info("  3. 在此处按回车键继续...")
+            logger.info("="*70)
+            input()
 
-            # 显示变化
-            SchemaEditor.print_field_changes(final_schema, edited_schema)
+            # 读取编辑后的schema
+            with open(current_dir_schema, 'r', encoding='utf-8') as f:
+                edited_schema = json.load(f)
+
+            # 显示变化（简单对比）
+            original_fields = set(final_schema.keys())
+            edited_fields = set(edited_schema.keys())
+            added_fields = edited_fields - original_fields
+            removed_fields = original_fields - edited_fields
+
+            if added_fields or removed_fields:
+                logger.info("\n✓ Schema已修改:")
+                if added_fields:
+                    logger.info(f"  新增字段: {', '.join(added_fields)}")
+                if removed_fields:
+                    logger.info(f"  删除字段: {', '.join(removed_fields)}")
+            else:
+                logger.info("\n✓ 已读取编辑后的Schema（字段数量未变）")
+
+            logger.info(f"  最终Schema包含 {len(edited_schema)} 个字段")
 
             # 更新为编辑后的schema
             final_schema = edited_schema
+
+            # 清理当前目录的schema文件
+            if current_dir_schema.exists():
+                os.remove(current_dir_schema)
+                logger.info(f"✓ 已清理临时schema文件")
 
         # 读取所有中间schema
         intermediate_schemas = []

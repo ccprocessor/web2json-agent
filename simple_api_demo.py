@@ -1,6 +1,6 @@
 """
 Web2JSON Simple API Demo
-演示5个主要API的使用方式，所有数据保存在内存中，不落盘
+演示5个主要API的使用方式，所有数据保存在内存中
 """
 from web2json import (
     Web2JsonConfig,
@@ -25,14 +25,15 @@ load_dotenv(env_path)
 def demo_extract_data():
     """完整流程：生成schema + parser + 解析所有HTML文件"""
     print("\n" + "="*70)
-    print("API 1: extract_data - 完整流程（Auto模式")
+    print("API 1: extract_data - 完整流程（Auto模式）")
     print("="*70)
 
     # Auto模式（自动学习Schema）
     config = Web2JsonConfig(
         name="demo_auto",
         html_path="input_html/",
-        iteration_rounds=3
+        iteration_rounds=1,
+        enable_schema_edit = True
     )
 
     result = extract_data(config)
@@ -127,25 +128,26 @@ def demo_extract_schema():
 # API 3: infer_code - 生成Parser代码
 # ============================================
 def demo_infer_code():
-    """根据Schema和HTML生成Parser代码"""
+    """使用已有的Schema生成Parser代码（需要预先定义schema）"""
     print("\n" + "="*70)
-    print("API 3: infer_code - 生成Parser代码")
+    print("API 3: infer_code - 使用预定义Schema生成Parser")
     print("="*70)
 
-    # 步骤1: 先提取schema
-    print("\n步骤1: 提取Schema...")
-    config = Web2JsonConfig(
-        name="demo_schema",
-        html_path="input_html/",
-        iteration_rounds=3
-    )
-    schema_result = extract_schema(config)
-    print(f"✓ {schema_result.get_summary()}")
+    # 使用手动定义的schema
+    my_schema = {
+        "title": "string",
+        "author": "string",
+        "publish_date": "string",
+        "content": "string",
+        "tags": "list"
+    }
 
-    # 步骤2: 使用schema生成parser代码
-    print("\n步骤2: 生成Parser代码...")
+    print("\n=== 使用的Schema ===")
+    print(json.dumps(my_schema, indent=2, ensure_ascii=False))
+
+    print("\n正在生成Parser代码...")
     code_result = infer_code(
-        schema=schema_result.final_schema,
+        schema=my_schema,
         html_path="input_html/"
     )
 
@@ -161,16 +163,16 @@ def demo_infer_code():
 
 
 # ============================================
-# API 4: extract_data_with_code - 使用代码解析
+# 组合示例: extract_schema + infer_code
 # ============================================
-def demo_extract_data_with_code():
-    """使用Parser代码解析HTML文件"""
+def demo_schema_to_code():
+    """组合使用：先提取Schema，再生成Parser代码"""
     print("\n" + "="*70)
-    print("API 4: extract_data_with_code - 使用代码解析")
+    print("组合示例: extract_schema -> infer_code")
     print("="*70)
 
-    # 步骤1: 先提取schema
-    print("\n步骤1: 提取Schema...")
+    # 步骤1: 从HTML提取Schema
+    print("\n步骤1: 从HTML提取Schema...")
     config = Web2JsonConfig(
         name="demo_schema",
         html_path="input_html/",
@@ -179,18 +181,51 @@ def demo_extract_data_with_code():
     schema_result = extract_schema(config)
     print(f"✓ {schema_result.get_summary()}")
 
-    # 步骤2: 生成parser代码
-    print("\n步骤2: 生成Parser代码...")
+    # 打印提取的Schema
+    print("\n=== 提取的Schema ===")
+    print(json.dumps(schema_result.final_schema, indent=2, ensure_ascii=False))
+
+    # 步骤2: 使用提取的Schema生成Parser代码
+    print("\n步骤2: 使用Schema生成Parser代码...")
     code_result = infer_code(
         schema=schema_result.final_schema,
         html_path="input_html/"
     )
     print(f"✓ {code_result.get_summary()}")
 
-    # 步骤3: 使用parser代码解析HTML
-    print("\n步骤3: 使用Parser解析HTML...")
+    # 打印Parser代码（前40行）
+    print("\n=== 生成的Parser代码（前40行）===")
+    code_lines = code_result.parser_code.split('\n')[:40]
+    for i, line in enumerate(code_lines, 1):
+        print(f"{i:3d} | {line}")
+    if len(code_result.parser_code.split('\n')) > 40:
+        print(f"... 还有 {len(code_result.parser_code.split('\n')) - 40} 行")
+
+
+# ============================================
+# API 4: extract_data_with_code - 使用代码解析
+# ============================================
+def demo_extract_data_with_code():
+    """使用已有的Parser代码解析HTML文件（需要预先有parser代码）"""
+    print("\n" + "="*70)
+    print("API 4: extract_data_with_code - 使用已有Parser解析")
+    print("="*70)
+
+    print("⚠ 此示例需要预先准备好parser代码")
+    print("提示: 可以先运行示例3或4生成parser代码，然后使用该代码")
+    print("\n由于是演示，这里会先生成一个简单的parser代码...")
+
+    # 为演示目的，先快速生成一个parser
+    schema = {"title": "string", "content": "string"}
+    code_result = infer_code(schema=schema, html_path="input_html/")
+    parser_code = code_result.parser_code
+
+    print("✓ 已准备好Parser代码")
+
+    # 使用parser代码解析HTML
+    print("\n使用Parser解析HTML文件...")
     parse_result = extract_data_with_code(
-        parser_code=code_result.parser_code,
+        parser_code=parser_code,
         html_path="input_html/"
     )
 
@@ -202,6 +237,55 @@ def demo_extract_data_with_code():
         print(f"\n文件: {item['filename']}")
         print(json.dumps(item['data'], indent=2, ensure_ascii=False)[:300])
         print("...")
+
+
+# ============================================
+# 组合示例: 完整流程（分步骤）
+# ============================================
+def demo_full_pipeline():
+    """组合使用：extract_schema -> infer_code -> extract_data_with_code"""
+    print("\n" + "="*70)
+    print("组合示例: 完整流程（分步骤）")
+    print("="*70)
+
+    # 步骤1: 提取Schema
+    print("\n步骤1: 从HTML提取Schema...")
+    config = Web2JsonConfig(
+        name="demo_pipeline",
+        html_path="input_html/",
+        iteration_rounds=3
+    )
+    schema_result = extract_schema(config)
+    print(f"✓ {schema_result.get_summary()}")
+
+    # 步骤2: 生成Parser代码
+    print("\n步骤2: 使用Schema生成Parser...")
+    code_result = infer_code(
+        schema=schema_result.final_schema,
+        html_path="input_html/"
+    )
+    print(f"✓ {code_result.get_summary()}")
+
+    # 步骤3: 使用Parser解析HTML
+    print("\n步骤3: 使用Parser批量解析HTML...")
+    parse_result = extract_data_with_code(
+        parser_code=code_result.parser_code,
+        html_path="input_html/"
+    )
+    print(f"✓ {parse_result.get_summary()}")
+
+    # 展示最终结果
+    print("\n=== 最终结果摘要 ===")
+    print(f"Schema字段数: {len(schema_result.final_schema)}")
+    print(f"Parser代码行数: {len(code_result.parser_code.split(chr(10)))}")
+    print(f"成功解析文件数: {parse_result.success_count}")
+    print(f"失败文件数: {parse_result.failed_count}")
+
+    # 打印第一个解析结果
+    if parse_result.parsed_data:
+        print(f"\n=== 示例数据（第1个文件）===")
+        print(f"文件: {parse_result.parsed_data[0]['filename']}")
+        print(json.dumps(parse_result.parsed_data[0]['data'], indent=2, ensure_ascii=False))
 
 
 # ============================================
@@ -236,55 +320,6 @@ def demo_classify_html():
         print(f"\n噪声点: {len(result.noise_files)} 个文件")
         for file_path in result.noise_files[:3]:
             print(f"  - {Path(file_path).name}")
-
-
-# ============================================
-# 完整工作流示例
-# ============================================
-def demo_full_workflow():
-    """演示完整的工作流程"""
-    print("\n" + "="*70)
-    print("完整工作流示例")
-    print("="*70)
-
-    # 步骤1: 提取Schema
-    print("\n步骤1: 提取Schema...")
-    config_step1 = Web2JsonConfig(
-        name="workflow_step1",
-        html_path="input_html/",
-        iteration_rounds=2
-    )
-    schema_result = extract_schema(config_step1)
-    print(f"✓ {schema_result.get_summary()}")
-
-    # 步骤2: 生成Parser代码
-    print("\n步骤2: 生成Parser...")
-    code_result = infer_code(
-        schema=schema_result.final_schema,
-        html_path="input_html/"
-    )
-    print(f"✓ {code_result.get_summary()}")
-
-    # 步骤3: 批量解析HTML
-    print("\n步骤3: 批量解析HTML...")
-    parse_result = extract_data_with_code(
-        parser_code=code_result.parser_code,
-        html_path="input_html/"
-    )
-    print(f"✓ {parse_result.get_summary()}")
-
-    # 展示最终结果
-    print("\n=== 最终结果摘要 ===")
-    print(f"Schema字段数: {len(schema_result.final_schema)}")
-    print(f"Parser代码行数: {len(code_result.parser_code.split(chr(10)))}")
-    print(f"成功解析文件数: {parse_result.success_count}")
-    print(f"失败文件数: {parse_result.failed_count}")
-
-    # 打印第一个解析结果
-    if parse_result.parsed_data:
-        print(f"\n=== 示例数据（第1个文件）===")
-        print(f"文件: {parse_result.parsed_data[0]['filename']}")
-        print(json.dumps(parse_result.parsed_data[0]['data'], indent=2, ensure_ascii=False))
 
 
 # ============================================
@@ -339,22 +374,26 @@ def demo_data_transfer():
 
 if __name__ == "__main__":
     print("\n" + "="*70)
-    print("Web2JSON Simple API Demo ")
+    print("Web2JSON Simple API Demo (纯内存模式)")
     print("="*70)
 
     # 选择要运行的demo
     print("\n请选择要运行的示例：")
-    print("1. API 1: extract_data - Auto模式")
+    print("\n基础API示例:")
+    print("1. API 1: extract_data - Auto模式（完整流程）")
     print("2. API 1: extract_data - Predefined模式")
     print("3. API 2: extract_schema - 提取Schema")
-    print("4. API 3: infer_code - 生成Parser代码")
-    print("5. API 4: extract_data_with_code - 使用代码解析")
+    print("4. API 3: infer_code - 使用预定义Schema生成Parser")
+    print("5. API 4: extract_data_with_code - 使用已有Parser解析")
     print("6. API 5: classify_html_dir - HTML布局分类")
-    print("7. 完整工作流示例")
-    print("8. 数据传输示例")
-    print("0. 退出")
+    print("\n组合使用示例:")
+    print("7. extract_schema -> infer_code (Schema转Parser)")
+    print("8. 完整流程（分步骤：Schema -> Code -> Parse）")
+    print("\n高级示例:")
+    print("9. 数据传输示例（保存到数据库/API）")
+    print("\n0. 退出")
 
-    choice = input("\n请输入选择 (0-8): ")
+    choice = input("\n请输入选择 (0-9): ")
 
     if choice == "1":
         demo_extract_data()
@@ -369,8 +408,10 @@ if __name__ == "__main__":
     elif choice == "6":
         demo_classify_html()
     elif choice == "7":
-        demo_full_workflow()
+        demo_schema_to_code()
     elif choice == "8":
+        demo_full_pipeline()
+    elif choice == "9":
         demo_data_transfer()
     elif choice == "0":
         print("退出")
