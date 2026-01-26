@@ -127,79 +127,21 @@ def demo_extract_schema():
 # API 3: infer_code - 生成Parser代码
 # ============================================
 def demo_infer_code():
-    """使用已有的Schema生成Parser代码（需要预先定义schema）"""
-    print("\n" + "="*70)
-    print("API 3: infer_code - 使用预定义Schema生成Parser")
-    print("="*70)
-
-    # 使用手动定义的schema
-    my_schema = {
-        "title": "string",
-        "author": "string",
-        "publish_date": "string",
-        "content": "string",
-        "tags": "list"
-    }
-
-    print("\n=== 使用的Schema ===")
-    print(json.dumps(my_schema, indent=2, ensure_ascii=False))
-
-    print("\n正在生成Parser代码...")
-    code_result = infer_code(
-        schema=my_schema,
-        html_path="input_html/"
-    )
-
-    print(f"\n{code_result.get_summary()}")
-
-    # 打印Parser代码（前40行）
-    print("\n=== Parser代码（前40行）===")
-    code_lines = code_result.parser_code.split('\n')[:40]
-    for i, line in enumerate(code_lines, 1):
-        print(f"{i:3d} | {line}")
-    if len(code_result.parser_code.split('\n')) > 40:
-        print(f"... 还有 {len(code_result.parser_code.split('\n')) - 40} 行")
-
-
-# ============================================
-# 组合示例: extract_schema + infer_code
-# ============================================
-def demo_schema_to_code():
-    """组合使用：先提取Schema，再生成Parser代码"""
-    print("\n" + "="*70)
-    print("组合示例: extract_schema -> infer_code")
-    print("="*70)
-
-    # 步骤1: 从HTML提取Schema
-    print("\n步骤1: 从HTML提取Schema...")
+    """生成Parser代码（支持预定义、自动生成、自动生成并修改）"""
     config = Web2JsonConfig(
-        name="demo_schema",
-        html_path="input_html/",
-        iteration_rounds=3
-    )
-    schema_result = extract_schema(config)
-    print(f"✓ {schema_result.get_summary()}")
-
-    # 打印提取的Schema
-    print("\n=== 提取的Schema ===")
-    print(json.dumps(schema_result.final_schema, indent=2, ensure_ascii=False))
-
-    # 步骤2: 使用提取的Schema生成Parser代码
-    print("\n步骤2: 使用Schema生成Parser代码...")
-    code_result = infer_code(
-        schema=schema_result.final_schema,
-        html_path="input_html/"
-    )
-    print(f"✓ {code_result.get_summary()}")
-
-    # 打印Parser代码（前40行）
-    print("\n=== 生成的Parser代码（前40行）===")
-    code_lines = code_result.parser_code.split('\n')[:40]
-    for i, line in enumerate(code_lines, 1):
-        print(f"{i:3d} | {line}")
-    if len(code_result.parser_code.split('\n')) > 40:
-        print(f"... 还有 {len(code_result.parser_code.split('\n')) - 40} 行")
-
+        name="auto_run",
+        html_path="html_samples/",
+        iteration_rounds=1,
+        # schema=None 默认为auto模式
+        # enable_schema_edit = True  # 取消注释开启手动编辑schema
+        )
+    result = extract_data(config)
+    print(f"\n{result.get_summary()}")
+    # 打印解析数据（前2个文件）
+    print("\n=== 解析数据（前2个文件）===")
+    for item in result.parsed_data[:2]:
+        print(f"\n文件: {item['filename']}")
+        print(f"数据: {json.dumps(item['data'], indent=2, ensure_ascii=False)[:500]}...")
 
 # ============================================
 # API 4: extract_data_with_code - 使用代码解析
@@ -406,8 +348,6 @@ if __name__ == "__main__":
         demo_extract_data_with_code()
     elif choice == "6":
         demo_classify_html()
-    elif choice == "7":
-        demo_schema_to_code()
     elif choice == "8":
         demo_full_pipeline()
     elif choice == "9":
