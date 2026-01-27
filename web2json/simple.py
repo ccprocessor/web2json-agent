@@ -14,7 +14,7 @@ from web2json.agent import ParserAgent
 
 @dataclass
 class ExtractDataResult:
-    """完整流程的返回结果（纯内存数据）"""
+    """完整流程的返回结果"""
     final_schema: Dict                      # 最终Schema
     parser_code: str                        # Parser代码字符串
     parsed_data: List[Dict[str, Any]]       # 所有解析后的数据 [{filename: "xx.html", data: {...}}, ...]
@@ -30,7 +30,7 @@ class ExtractDataResult:
 
 @dataclass
 class ExtractSchemaResult:
-    """Schema提取结果（纯内存数据）"""
+    """Schema提取结果"""
     final_schema: Dict                      # 最终Schema
     intermediate_schemas: List[Dict]        # 中间迭代的schemas
 
@@ -45,7 +45,7 @@ class ExtractSchemaResult:
 
 @dataclass
 class InferCodeResult:
-    """代码生成结果（纯内存数据）"""
+    """代码生成结果"""
     parser_code: str                        # Parser代码字符串
     schema: Dict                            # 使用的Schema
 
@@ -60,7 +60,7 @@ class InferCodeResult:
 
 @dataclass
 class ParseResult:
-    """批量解析结果（纯内存数据）"""
+    """批量解析结果"""
     parsed_data: List[Dict[str, Any]]       # [{filename: "xx.html", data: {...}}, ...]
     success_count: int                      # 成功解析数量
     failed_count: int                       # 失败数量
@@ -76,7 +76,7 @@ class ParseResult:
 
 @dataclass
 class ClusterResult:
-    """聚类结果（纯内存数据）"""
+    """聚类结果"""
     clusters: Dict[str, List[str]]          # {"cluster_0": ["file1.html", ...], ...}
     labels: List[int]                       # 每个文件的标签
     noise_files: List[str]                  # 噪声点文件列表
@@ -186,7 +186,7 @@ def _read_html_files(directory_path: str) -> List[str]:
 
 
 def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
-    """API 1: 从HTML提取数据（完整流程，纯内存模式）
+    """API 1: 从HTML提取数据（完整流程）
 
     执行完整的工作流程：
     1. 分析HTML样本，学习数据结构（支持预定义schema或自动生成）
@@ -235,7 +235,7 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
     """
     _setup_logger()
 
-    logger.info(f"[API] extract_data - 完整流程（纯内存模式）")
+    logger.info(f"[API] extract_data - 完整流程")
     logger.info(f"  HTML路径: {config.html_path}")
     logger.info(f"  模式: {'Predefined' if config.is_predefined_mode() else 'Auto'}")
     logger.info(f"  样本数: {config.iteration_rounds}")
@@ -389,7 +389,7 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
 
 
 def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
-    """API 2: 从HTML提取Schema（纯内存模式）
+    """API 2: 从HTML提取Schema
 
     仅执行Schema学习阶段，不生成parser代码。
     支持人工编辑模式：当enable_schema_edit=True时，等待用户手动编辑schema。
@@ -425,7 +425,7 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
     """
     _setup_logger()
 
-    logger.info(f"[API] extract_schema - 提取Schema（纯内存模式）")
+    logger.info(f"[API] extract_schema - 提取Schema")
     logger.info(f"  HTML路径: {config.html_path}")
     logger.info(f"  样本数: {config.iteration_rounds}")
     logger.info(f"  人工编辑: {'启用' if config.enable_schema_edit else '禁用'}")
@@ -533,8 +533,8 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
             shutil.rmtree(output_path)
 
 
-def infer_code(schema: Dict, html_path: str) -> InferCodeResult:
-    """API 3: 根据Schema生成Parser代码（纯内存模式）
+def infer_code(config: Web2JsonConfig) -> InferCodeResult:
+    """API 3: 根据Schema生成Parser代码
 
     基于已有的schema（Dict对象）和HTML样本，生成parser代码。
     适用场景：
@@ -542,45 +542,57 @@ def infer_code(schema: Dict, html_path: str) -> InferCodeResult:
     - 需要基于schema生成parser代码
 
     Args:
-        schema: Schema字典（Dict对象，不再是文件路径！）
-        html_path: HTML文件目录或单个HTML文件路径
+        config: Web2JsonConfig配置对象
+            - schema: 必填，Schema字典
+            - html_path: 必填，HTML文件目录或单个HTML文件路径
+            - name: 可选，运行名称（默认值会被忽略）
+            - output_path: 可选，输出路径（默认值会被忽略）
+            - iteration_rounds: 可选，迭代轮数（默认值会被忽略）
 
     Returns:
         InferCodeResult: 包含parser_code和schema的结果对象
 
     Raises:
         Exception: 执行失败时抛出异常
+        ValueError: schema未提供时抛出异常
 
     Example:
         >>> # 使用 extract_schema 的结果
         >>> schema_result = extract_schema(config)
-        >>> code_result = infer_code(
-        ...     schema=schema_result.final_schema,
-        ...     html_path="html_samples/"
+        >>> code_config = Web2JsonConfig(
+        ...     name="infer_code",  # 任意名称
+        ...     html_path="html_samples/",
+        ...     schema=schema_result.final_schema
         ... )
-        >>> print(code_result.parser_code[:500])  # 打印前500字符
+        >>> code_result = infer_code(code_config)
+        >>> print(code_result.parser_code[:500])
 
         >>> # 使用手动定义的schema
-        >>> my_schema = {"title": "string", "author": "string", "content": "string"}
-        >>> code_result = infer_code(
-        ...     schema=my_schema,
-        ...     html_path="sample.html"
+        >>> config = Web2JsonConfig(
+        ...     name="my_code",
+        ...     html_path="html_samples/",
+        ...     schema={"title": "string", "author": "string"}
         ... )
+        >>> code_result = infer_code(config)
     """
     _setup_logger()
 
-    logger.info(f"[API] infer_code - 生成Parser代码（纯内存模式）")
-    logger.info(f"  HTML路径: {html_path}")
-    logger.info(f"  Schema字段数: {len(schema)}")
+    # 验证必填参数
+    if not config.schema:
+        raise ValueError("infer_code 需要提供 schema 参数")
+
+    logger.info(f"[API] infer_code - 生成Parser代码")
+    logger.info(f"  HTML路径: {config.html_path}")
+    logger.info(f"  Schema字段数: {len(config.schema)}")
 
     # 处理HTML路径（可能是目录或单个文件）
-    html_file_path = Path(html_path)
+    html_file_path = Path(config.html_path)
     if html_file_path.is_dir():
-        html_files = _read_html_files(html_path)
+        html_files = _read_html_files(config.html_path)
     elif html_file_path.is_file():
         html_files = [str(html_file_path.absolute())]
     else:
-        raise FileNotFoundError(f"HTML路径不存在: {html_path}")
+        raise FileNotFoundError(f"HTML路径不存在: {config.html_path}")
 
     logger.info(f"找到 {len(html_files)} 个HTML文件")
 
@@ -596,9 +608,9 @@ def infer_code(schema: Dict, html_path: str) -> InferCodeResult:
 
         # 配置为predefined模式
         agent.executor.schema_mode = "predefined"
-        agent.executor.schema_template = schema
+        agent.executor.schema_template = config.schema
         agent.executor.schema_processor.schema_mode = "predefined"
-        agent.executor.schema_processor.schema_template = schema
+        agent.executor.schema_processor.schema_template = config.schema
         agent.executor.schema_phase.schema_mode = "predefined"
 
         # 创建执行计划（需要HTML样本用于代码生成）
@@ -616,12 +628,12 @@ def infer_code(schema: Dict, html_path: str) -> InferCodeResult:
             raise Exception(f"HTML处理失败: {error_msg}")
 
         # 用提供的schema替换自动生成的schema
-        agent.executor.final_schema = schema
+        agent.executor.final_schema = config.schema
         logger.info(f"已应用提供的Schema，开始生成Parser代码...")
 
         # 执行代码生成阶段
         code_result = agent.executor.code_phase.execute(
-            final_schema=schema,
+            final_schema=config.schema,
             schema_phase_rounds=schema_result['rounds']
         )
 
@@ -642,7 +654,7 @@ def infer_code(schema: Dict, html_path: str) -> InferCodeResult:
 
         return InferCodeResult(
             parser_code=parser_code,
-            schema=schema
+            schema=config.schema
         )
 
     finally:
@@ -651,8 +663,8 @@ def infer_code(schema: Dict, html_path: str) -> InferCodeResult:
             shutil.rmtree(output_dir)
 
 
-def extract_data_with_code(parser_code: str, html_path: str) -> ParseResult:
-    """API 4: 使用Parser代码解析HTML文件（纯内存模式）
+def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
+    """API 4: 使用Parser代码解析HTML文件
 
     使用提供的parser代码来解析HTML文件。
     适用场景：
@@ -660,46 +672,52 @@ def extract_data_with_code(parser_code: str, html_path: str) -> ParseResult:
     - 需要解析新的、结构相同的HTML文件
 
     Args:
-        parser_code: Parser代码内容（Python代码字符串）
-        html_path: HTML文件目录或单个HTML文件路径
+        config: Web2JsonConfig配置对象
+            - parser_code: 必填，Parser代码字符串
+            - html_path: 必填，HTML文件目录或单个HTML文件路径
+            - name: 可选，运行名称（默认值会被忽略）
+            - output_path: 可选，输出路径（默认值会被忽略）
+            - iteration_rounds: 可选，迭代轮数（默认值会被忽略）
+            - schema: 可选，Schema（默认值会被忽略）
 
     Returns:
         ParseResult: 包含parsed_data列表的结果对象
 
     Raises:
         Exception: 执行失败时抛出异常
+        ValueError: parser_code未提供时抛出异常
         FileNotFoundError: HTML文件不存在
 
     Example:
         >>> # 使用 infer_code 的结果
-        >>> code_result = infer_code(schema=my_schema, html_path="html_samples/")
-        >>> parse_result = extract_data_with_code(
-        ...     parser_code=code_result.parser_code,
-        ...     html_path="new_html_samples/"
+        >>> code_result = infer_code(config)
+        >>> parse_config = Web2JsonConfig(
+        ...     name="parse_demo",
+        ...     html_path="new_html_samples/",
+        ...     parser_code=code_result.parser_code
         ... )
-        >>> for item in parse_result.parsed_data[:2]:  # 打印前2个
+        >>> parse_result = extract_data_with_code(parse_config)
+        >>> for item in parse_result.parsed_data[:2]:
         ...     print(f"文件: {item['filename']}")
         ...     print(f"数据: {item['data']}")
-
-        >>> # 使用单个文件
-        >>> parse_result = extract_data_with_code(
-        ...     parser_code=parser_code,
-        ...     html_path="sample.html"
-        ... )
     """
     _setup_logger()
 
-    logger.info(f"[API] extract_data_with_code - 使用代码解析（纯内存模式）")
-    logger.info(f"  HTML路径: {html_path}")
+    # 验证必填参数
+    if not config.parser_code:
+        raise ValueError("extract_data_with_code 需要提供 parser_code 参数")
+
+    logger.info(f"[API] extract_data_with_code - 使用代码解析")
+    logger.info(f"  HTML路径: {config.html_path}")
 
     # 处理HTML路径（可能是目录或单个文件）
-    html_file_path = Path(html_path)
+    html_file_path = Path(config.html_path)
     if html_file_path.is_dir():
-        html_files = _read_html_files(html_path)
+        html_files = _read_html_files(config.html_path)
     elif html_file_path.is_file():
         html_files = [str(html_file_path.absolute())]
     else:
-        raise FileNotFoundError(f"HTML路径不存在: {html_path}")
+        raise FileNotFoundError(f"HTML路径不存在: {config.html_path}")
 
     logger.info(f"找到 {len(html_files)} 个HTML文件")
 
@@ -711,7 +729,7 @@ def extract_data_with_code(parser_code: str, html_path: str) -> ParseResult:
 
     # 创建临时parser文件
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as tmp_parser:
-        tmp_parser.write(parser_code)
+        tmp_parser.write(config.parser_code)
         temp_parser_path = tmp_parser.name
 
     try:
@@ -762,8 +780,8 @@ def extract_data_with_code(parser_code: str, html_path: str) -> ParseResult:
             shutil.rmtree(output_dir)
 
 
-def classify_html_dir(html_path: str) -> ClusterResult:
-    """API 5: 对HTML目录进行布局分类（纯内存模式）
+def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
+    """API 5: 对HTML目录进行布局分类
 
     根据HTML页面的布局相似度进行聚类分析，将相似布局的页面分组。
     适用场景：
@@ -772,7 +790,13 @@ def classify_html_dir(html_path: str) -> ClusterResult:
     - 需要将不同布局的页面分开处理
 
     Args:
-        html_path: HTML文件目录路径
+        config: Web2JsonConfig配置对象
+            - html_path: 必填，HTML文件目录路径
+            - name: 可选，运行名称（默认值会被忽略）
+            - output_path: 可选，输出路径（默认值会被忽略）
+            - iteration_rounds: 可选，迭代轮数（默认值会被忽略）
+            - schema: 可选，Schema（默认值会被忽略）
+            - parser_code: 可选，Parser代码（默认值会被忽略）
 
     Returns:
         ClusterResult: 包含clusters、labels、noise_files的结果对象
@@ -781,19 +805,23 @@ def classify_html_dir(html_path: str) -> ClusterResult:
         Exception: 执行失败时抛出异常
 
     Example:
-        >>> result = classify_html_dir(html_path="mixed_html/")
+        >>> config = Web2JsonConfig(
+        ...     name="classify_demo",
+        ...     html_path="mixed_html/"
+        ... )
+        >>> result = classify_html_dir(config)
         >>> print(result.get_summary())
         >>> print(f"簇0包含: {len(result.clusters['cluster_0'])} 个文件")
         >>> for cluster_name, files in result.clusters.items():
-        ...     print(f"{cluster_name}: {files[:3]}")  # 打印每个簇的前3个文件
+        ...     print(f"{cluster_name}: {files[:3]}")
     """
     _setup_logger()
 
-    logger.info(f"[API] classify_html_dir - HTML布局分类（纯内存模式）")
-    logger.info(f"  HTML路径: {html_path}")
+    logger.info(f"[API] classify_html_dir - HTML布局分类")
+    logger.info(f"  HTML路径: {config.html_path}")
 
     # 读取HTML文件
-    html_files = _read_html_files(html_path)
+    html_files = _read_html_files(config.html_path)
     logger.info(f"找到 {len(html_files)} 个HTML文件")
 
     # 读取所有HTML内容
