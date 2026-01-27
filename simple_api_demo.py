@@ -144,7 +144,7 @@ def demo_infer_code():
     config = Web2JsonConfig(
         name="infer_code_demo",  # 运行名称（必填）
         html_path="html_samples/",  # HTML样本路径（必填）
-        schema=my_schema  # Schema字典（必填）
+        schema=my_schema  # Schema字典
         # iteration_rounds=3  # 迭代轮数（默认为3）
         # enable_schema_edit=False  # 是否启用人工编辑（可选，此API会忽略）
     )
@@ -152,6 +152,43 @@ def demo_infer_code():
     code_result = infer_code(config)
 
     print(f"\n{code_result.get_summary()}")
+
+    # 打印Parser代码（前40行）
+    print("\n=== Parser代码（前40行）===")
+    code_lines = code_result.parser_code.split('\n')[:40]
+    for i, line in enumerate(code_lines, 1):
+        print(f"{i:3d} | {line}")
+    if len(code_result.parser_code.split('\n')) > 40:
+        print(f"... 还有 {len(code_result.parser_code.split('\n')) - 40} 行")
+
+def demo_infer_code_auto():
+    """生成Parser代码（Auto模式：自动学习Schema）"""
+    print("\n" + "="*70)
+    print("API 3: infer_code - Auto模式（自动学习Schema并生成Parser）")
+    print("="*70)
+
+    print("\n此示例演示不提供Schema，自动从HTML学习Schema后生成Parser")
+
+    # 使用Config方式调用API（不提供schema）
+    config = Web2JsonConfig(
+        name="infer_code_auto",  # 运行名称（必填）
+        html_path="html_samples/",  # HTML样本路径（必填）
+        iteration_rounds=3  # 迭代轮数（可选，默认3）
+        # enable_schema_edit=False  # 是否启用人工编辑（可选，此API会忽略）
+        # schema=None  # 不提供Schema，使用Auto模式自动学习
+    )
+
+    code_result = infer_code(config)
+
+    print(f"\n{code_result.get_summary()}")
+
+    # 打印自动学习的Schema
+    print("\n=== 自动学习的Schema（前10个字段）===")
+    schema_items = list(code_result.schema.items())[:10]
+    for field, field_type in schema_items:
+        print(f"  {field}: {field_type}")
+    if len(code_result.schema) > 10:
+        print(f"  ... 还有 {len(code_result.schema) - 10} 个字段")
 
     # 打印Parser代码（前40行）
     print("\n=== Parser代码（前40行）===")
@@ -174,7 +211,7 @@ def demo_extract_data_with_code():
     parse_config = Web2JsonConfig(
         name="parse_demo",  # 运行名称（必填）
         html_path="html_samples/",  # HTML文件路径（必填）
-        parser_code=parser_code  # Parser代码（str格式，必填）
+        parser_code=parser_code  # Parser代码（必填）
     )
     parse_result = extract_data_with_code(parse_config)
 
@@ -239,12 +276,13 @@ if __name__ == "__main__":
     print("1. API 1: extract_data - Auto模式（完整流程）")
     print("2. API 1: extract_data - Predefined模式")
     print("3. API 2: extract_schema - 提取Schema")
-    print("4. API 3: infer_code - 使用预定义Schema生成Parser")
-    print("5. API 4: extract_data_with_code - 使用已有Parser解析")
-    print("6. API 5: classify_html_dir - HTML布局分类")
+    print("4. API 3: infer_code - Predefined模式（使用已有Schema）")
+    print("5. API 3: infer_code - Auto模式（自动学习Schema）")
+    print("6. API 4: extract_data_with_code - 使用已有Parser解析")
+    print("7. API 5: classify_html_dir - HTML布局分类")
     print("\n0. 退出")
 
-    choice = input("\n请输入选择 (0-6): ")
+    choice = input("\n请输入选择 (0-7): ")
 
     if choice == "1":
         demo_extract_data()
@@ -255,8 +293,10 @@ if __name__ == "__main__":
     elif choice == "4":
         demo_infer_code()
     elif choice == "5":
-        demo_extract_data_with_code()
+        demo_infer_code_auto()
     elif choice == "6":
+        demo_extract_data_with_code()
+    elif choice == "7":
         demo_classify_html()
     elif choice == "0":
         print("退出")

@@ -536,54 +536,58 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
 def infer_code(config: Web2JsonConfig) -> InferCodeResult:
     """API 3: 根据Schema生成Parser代码
 
-    基于已有的schema（Dict对象）和HTML样本，生成parser代码。
+    支持两种模式：
+    1. Predefined模式：提供schema，直接基于schema生成parser代码
+    2. Auto模式：不提供schema，自动从HTML学习schema后生成parser代码
+
     适用场景：
-    - 已经有了schema（通过extract_schema获得或手动编写）
-    - 需要基于schema生成parser代码
+    - 已经有了schema（通过extract_schema获得或手动编写），需要生成parser代码
+    - 没有schema，需要从HTML自动学习schema并生成parser代码
 
     Args:
         config: Web2JsonConfig配置对象
-            - schema: 必填，Schema字典
             - html_path: 必填，HTML文件目录或单个HTML文件路径
+            - schema: 可选，Schema字典（None时为auto模式，自动学习）
+            - iteration_rounds: 可选，迭代轮数（auto模式时使用，默认3）
             - name: 可选，运行名称（默认值会被忽略）
             - output_path: 可选，输出路径（默认值会被忽略）
-            - iteration_rounds: 可选，迭代轮数（默认值会被忽略）
 
     Returns:
         InferCodeResult: 包含parser_code和schema的结果对象
 
     Raises:
         Exception: 执行失败时抛出异常
-        ValueError: schema未提供时抛出异常
 
     Example:
-        >>> # 使用 extract_schema 的结果
-        >>> schema_result = extract_schema(config)
-        >>> code_config = Web2JsonConfig(
-        ...     name="infer_code",  # 任意名称
-        ...     html_path="html_samples/",
-        ...     schema=schema_result.final_schema
-        ... )
-        >>> code_result = infer_code(code_config)
-        >>> print(code_result.parser_code[:500])
-
-        >>> # 使用手动定义的schema
+        >>> # Predefined模式：使用已有的schema
         >>> config = Web2JsonConfig(
         ...     name="my_code",
         ...     html_path="html_samples/",
         ...     schema={"title": "string", "author": "string"}
         ... )
         >>> code_result = infer_code(config)
+
+        >>> # Auto模式：自动学习schema
+        >>> config = Web2JsonConfig(
+        ...     name="auto_code",
+        ...     html_path="html_samples/",
+        ...     iteration_rounds=3
+        ... )
+        >>> code_result = infer_code(config)
+        >>> print(f"自动学习的Schema: {code_result.schema}")
     """
     _setup_logger()
 
-    # 验证必填参数
-    if not config.schema:
-        raise ValueError("infer_code 需要提供 schema 参数")
-
     logger.info(f"[API] infer_code - 生成Parser代码")
     logger.info(f"  HTML路径: {config.html_path}")
-    logger.info(f"  Schema字段数: {len(config.schema)}")
+
+    # 判断是 predefined 模式还是 auto 模式
+    if config.schema:
+        logger.info(f"  模式: Predefined（使用提供的Schema）")
+        logger.info(f"  Schema字段数: {len(config.schema)}")
+    else:
+        logger.info(f"  模式: Auto（自动学习Schema）")
+        logger.info(f"  迭代轮数: {config.iteration_rounds}")
 
     # 处理HTML路径（可能是目录或单个文件）
     html_file_path = Path(config.html_path)
@@ -606,34 +610,65 @@ def infer_code(config: Web2JsonConfig) -> InferCodeResult:
         # 创建Agent
         agent = ParserAgent(output_dir=str(output_dir))
 
-        # 配置为predefined模式
-        agent.executor.schema_mode = "predefined"
-        agent.executor.schema_template = config.schema
-        agent.executor.schema_processor.schema_mode = "predefined"
-        agent.executor.schema_processor.schema_template = config.schema
-        agent.executor.schema_phase.schema_mode = "predefined"
-
-        # 创建执行计划（需要HTML样本用于代码生成）
+        # 创建执行计划
         from web2json.agent.planner import AgentPlanner
         planner = AgentPlanner()
-        plan = planner.create_plan(html_files, iteration_rounds=min(len(html_files), 3))
 
-        logger.info(f"使用提供的Schema（跳过Schema提取，仅处理HTML）")
+        # 根据是否提供schema选择不同的模式
+        if config.schema:
+            # Predefined模式：使用提供的schema
+            agent.executor.schema_mode = "predefined"
+            agent.executor.schema_template = config.schema
+            agent.executor.schema_processor.schema_mode = "predefined"
+            agent.executor.schema_processor.schema_template = config.schema
+            agent.executor.schema_phase.schema_mode = "predefined"
 
-        # 运行Schema阶段以处理HTML并构建rounds数据结构
-        schema_result = agent.executor.schema_phase.execute(plan['sample_urls'])
+            plan = planner.create_plan(html_files, iteration_rounds=min(len(html_files), 3))
 
-        if not schema_result.get('success', False):
-            error_msg = schema_result.get('error', '未知错误')
-            raise Exception(f"HTML处理失败: {error_msg}")
+            logger.info(f"使用提供的Schema（跳过Schema提取，仅处理HTML）")
 
-        # 用提供的schema替换自动生成的schema
-        agent.executor.final_schema = config.schema
-        logger.info(f"已应用提供的Schema，开始生成Parser代码...")
+            # 运行Schema阶段以处理HTML并构建rounds数据结构
+            schema_result = agent.executor.schema_phase.execute(plan['sample_urls'])
+
+            if not schema_result.get('success', False):
+                error_msg = schema_result.get('error', '未知错误')
+                raise Exception(f"HTML处理失败: {error_msg}")
+
+            # 用提供的schema替换自动生成的schema
+            agent.executor.final_schema = config.schema
+            final_schema = config.schema
+
+        else:
+            # Auto模式：自动学习schema
+            agent.executor.schema_mode = "auto"
+            agent.executor.schema_processor.schema_mode = "auto"
+            agent.executor.schema_phase.schema_mode = "auto"
+
+            plan = planner.create_plan(html_files, iteration_rounds=config.iteration_rounds)
+
+            logger.info(f"自动学习Schema（使用{config.iteration_rounds}个样本）")
+
+            # 运行Schema阶段，自动生成schema
+            schema_result = agent.executor.schema_phase.execute(plan['sample_urls'])
+
+            if not schema_result.get('success', False):
+                error_msg = schema_result.get('error', '未知错误')
+                raise Exception(f"Schema学习失败: {error_msg}")
+
+            # 读取自动生成的schema
+            schema_path = schema_result.get('final_schema_path')
+            with open(schema_path, 'r', encoding='utf-8') as f:
+                import json
+                final_schema = json.load(f)
+
+            agent.executor.final_schema = final_schema
+            logger.info(f"✓ Schema学习完成，包含 {len(final_schema)} 个字段")
+
+        logger.info(f"开始生成Parser代码...")
 
         # 执行代码生成阶段
         code_result = agent.executor.code_phase.execute(
-            final_schema=config.schema,
+            final_schema=final_schema,
             schema_phase_rounds=schema_result['rounds']
         )
 
@@ -654,7 +689,7 @@ def infer_code(config: Web2JsonConfig) -> InferCodeResult:
 
         return InferCodeResult(
             parser_code=parser_code,
-            schema=config.schema
+            schema=final_schema
         )
 
     finally:
