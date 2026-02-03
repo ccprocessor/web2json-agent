@@ -64,6 +64,31 @@ def demo_extract_data():
         print(f"\n文件: {item['filename']}")
         print(f"数据: {json.dumps(item['data'], indent=2, ensure_ascii=False)[:500]}...")
 
+    # 保存结果到本地
+    output_dir = Path("demo_output/extract_data_auto")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存Schema
+    schema_file = output_dir / "final_schema.json"
+    with open(schema_file, 'w', encoding='utf-8') as f:
+        json.dump(result.final_schema, f, indent=2, ensure_ascii=False)
+    print(f"\n✓ Schema已保存到: {schema_file}")
+
+    # 保存Parser代码
+    parser_file = output_dir / "parser.py"
+    with open(parser_file, 'w', encoding='utf-8') as f:
+        f.write(result.parser_code)
+    print(f"✓ Parser代码已保存到: {parser_file}")
+
+    # 保存解析数据
+    data_dir = output_dir / "parsed_data"
+    data_dir.mkdir(exist_ok=True)
+    for item in result.parsed_data:
+        data_file = data_dir / f"{Path(item['filename']).stem}.json"
+        with open(data_file, 'w', encoding='utf-8') as f:
+            json.dump(item['data'], f, indent=2, ensure_ascii=False)
+    print(f"✓ 解析数据已保存到: {data_dir} ({len(result.parsed_data)}个文件)")
+
 
 def demo_extract_data_predefined():
     """Predefined模式（使用预定义Schema）"""
@@ -94,6 +119,31 @@ def demo_extract_data_predefined():
         print(f"文件: {result.parsed_data[0]['filename']}")
         print(json.dumps(result.parsed_data[0]['data'], indent=2, ensure_ascii=False))
 
+    # 保存结果到本地
+    output_dir = Path("demo_output/extract_data_predefined")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存Schema
+    schema_file = output_dir / "final_schema.json"
+    with open(schema_file, 'w', encoding='utf-8') as f:
+        json.dump(result.final_schema, f, indent=2, ensure_ascii=False)
+    print(f"\n✓ Schema已保存到: {schema_file}")
+
+    # 保存Parser代码
+    parser_file = output_dir / "parser.py"
+    with open(parser_file, 'w', encoding='utf-8') as f:
+        f.write(result.parser_code)
+    print(f"✓ Parser代码已保存到: {parser_file}")
+
+    # 保存解析数据
+    data_dir = output_dir / "parsed_data"
+    data_dir.mkdir(exist_ok=True)
+    for item in result.parsed_data:
+        data_file = data_dir / f"{Path(item['filename']).stem}.json"
+        with open(data_file, 'w', encoding='utf-8') as f:
+            json.dump(item['data'], f, indent=2, ensure_ascii=False)
+    print(f"✓ 解析数据已保存到: {data_dir} ({len(result.parsed_data)}个文件)")
+
 
 # ============================================
 # API 2: extract_schema - 提取Schema
@@ -118,6 +168,16 @@ def demo_extract_schema():
     # 打印最终Schema
     print("\n=== 最终Schema ===")
     print(json.dumps(result.final_schema, indent=2, ensure_ascii=False))
+
+    # 保存结果到本地
+    output_dir = Path("demo_output/extract_schema")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存Schema
+    schema_file = output_dir / "final_schema.json"
+    with open(schema_file, 'w', encoding='utf-8') as f:
+        json.dump(result.final_schema, f, indent=2, ensure_ascii=False)
+    print(f"\n✓ Schema已保存到: {schema_file}")
 
 # ============================================
 # API 3: infer_code - 生成Parser代码
@@ -161,6 +221,22 @@ def demo_infer_code():
     if len(code_result.parser_code.split('\n')) > 40:
         print(f"... 还有 {len(code_result.parser_code.split('\n')) - 40} 行")
 
+    # 保存结果到本地
+    output_dir = Path("demo_output/infer_code_predefined")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存Schema
+    schema_file = output_dir / "schema.json"
+    with open(schema_file, 'w', encoding='utf-8') as f:
+        json.dump(code_result.schema, f, indent=2, ensure_ascii=False)
+    print(f"\n✓ Schema已保存到: {schema_file}")
+
+    # 保存Parser代码
+    parser_file = output_dir / "parser.py"
+    with open(parser_file, 'w', encoding='utf-8') as f:
+        f.write(code_result.parser_code)
+    print(f"✓ Parser代码已保存到: {parser_file}")
+
 def demo_infer_code_auto():
     """生成Parser代码（Auto模式：自动学习Schema）"""
     print("\n" + "="*70)
@@ -198,6 +274,22 @@ def demo_infer_code_auto():
     if len(code_result.parser_code.split('\n')) > 40:
         print(f"... 还有 {len(code_result.parser_code.split('\n')) - 40} 行")
 
+    # 保存结果到本地
+    output_dir = Path("demo_output/infer_code_auto")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存Schema
+    schema_file = output_dir / "schema.json"
+    with open(schema_file, 'w', encoding='utf-8') as f:
+        json.dump(code_result.schema, f, indent=2, ensure_ascii=False)
+    print(f"\n✓ Schema已保存到: {schema_file}")
+
+    # 保存Parser代码
+    parser_file = output_dir / "parser.py"
+    with open(parser_file, 'w', encoding='utf-8') as f:
+        f.write(code_result.parser_code)
+    print(f"✓ Parser代码已保存到: {parser_file}")
+
 
 # ============================================
 # API 4: extract_data_with_code - 使用代码解析
@@ -223,6 +315,19 @@ def demo_extract_data_with_code():
         print(f"\n文件: {item['filename']}")
         print(json.dumps(item['data'], indent=2, ensure_ascii=False)[:300])
         print("...")
+
+    # 保存结果到本地
+    output_dir = Path("demo_output/extract_data_with_code")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存解析数据
+    data_dir = output_dir / "parsed_data"
+    data_dir.mkdir(exist_ok=True)
+    for item in parse_result.parsed_data:
+        data_file = data_dir / f"{Path(item['filename']).stem}.json"
+        with open(data_file, 'w', encoding='utf-8') as f:
+            json.dump(item['data'], f, indent=2, ensure_ascii=False)
+    print(f"\n✓ 解析数据已保存到: {data_dir} ({len(parse_result.parsed_data)}个文件)")
 
 
 # ============================================
@@ -262,6 +367,35 @@ def demo_classify_html():
         print(f"\n噪声点: {len(result.noise_files)} 个文件")
         for file_path in result.noise_files[:3]:
             print(f"  - {Path(file_path).name}")
+
+    # 保存结果到本地
+    output_dir = Path("demo_output/classify_html")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存分类结果
+    classification_file = output_dir / "classification_result.json"
+    classification_data = {
+        "clusters": {name: [str(Path(f).name) for f in files] for name, files in result.clusters.items()},
+        "noise_files": [str(Path(f).name) for f in result.noise_files] if result.noise_files else []
+    }
+    with open(classification_file, 'w', encoding='utf-8') as f:
+        json.dump(classification_data, f, indent=2, ensure_ascii=False)
+    print(f"\n✓ 分类结果已保存到: {classification_file}")
+
+    # 保存分类摘要
+    summary_file = output_dir / "classification_summary.txt"
+    with open(summary_file, 'w', encoding='utf-8') as f:
+        f.write(result.get_summary())
+        f.write("\n\n=== 聚类详情 ===\n")
+        for cluster_name, files in result.clusters.items():
+            f.write(f"\n{cluster_name}: {len(files)} 个文件\n")
+            for file_path in files:
+                f.write(f"  - {Path(file_path).name}\n")
+        if result.noise_files:
+            f.write(f"\n噪声点: {len(result.noise_files)} 个文件\n")
+            for file_path in result.noise_files:
+                f.write(f"  - {Path(file_path).name}\n")
+    print(f"✓ 分类摘要已保存到: {summary_file}")
 
 
 
