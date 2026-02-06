@@ -74,7 +74,7 @@ class CodeProcessor(BaseProcessor):
                 })
 
             # 调用代码生成工具
-            parser_result = generate_parser_code.invoke(invoke_params)
+            parser_result = generate_parser_code(**invoke_params)
 
             # 保存解析器代码
             parser_filename = f"parser_round_{idx}.py"

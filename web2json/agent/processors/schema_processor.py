@@ -74,7 +74,7 @@ class SchemaProcessor(BaseProcessor):
         }
 
         try:
-            html_schema = extract_schema_from_html.invoke({"html_content": html_content})
+            html_schema = extract_schema_from_html(html_content=html_content)
             logger.success(f"[提取阶段 {idx}] ✓ Schema提取完成（{len(html_schema)} 字段）")
 
             # 保存 schema
@@ -105,10 +105,10 @@ class SchemaProcessor(BaseProcessor):
         }
 
         try:
-            enriched_schema = enrich_schema_with_xpath.invoke({
-                "schema_template": self.schema_template,
-                "html_content": html_content
-            })
+            enriched_schema = enrich_schema_with_xpath(
+                schema_template=self.schema_template,
+                html_content=html_content
+            )
             logger.success(f"[补充阶段 {idx}] ✓ Schema补充完成（{len(enriched_schema)} 字段）")
 
             # 保存 schema
@@ -138,7 +138,7 @@ class SchemaProcessor(BaseProcessor):
         Returns:
             合并后的 Schema
         """
-        final_schema = merge_multiple_schemas.invoke({"schemas": schemas})
+        final_schema = merge_multiple_schemas(schemas=schemas)
         logger.success(f"✓ 合并完成，最终 Schema 包含 {len(final_schema)} 个字段")
 
         # 保存最终 Schema

@@ -6,7 +6,6 @@ import json
 import re
 from typing import Dict, List
 from loguru import logger
-from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 import os
 
@@ -81,7 +80,6 @@ def _parse_llm_response(response: str) -> Dict:
         raise Exception(f"解析模型响应失败: {str(e)}")
 
 
-@tool
 def extract_schema_from_html(html_content: str) -> Dict:
     """
     从HTML内容中提取Schema
@@ -133,7 +131,6 @@ def extract_schema_from_html(html_content: str) -> Dict:
         raise Exception(error_msg)
 
 
-@tool
 def merge_multiple_schemas(schemas: List[Dict]) -> Dict:
     """
     合并多个HTML的Schema
@@ -185,7 +182,6 @@ def merge_multiple_schemas(schemas: List[Dict]) -> Dict:
         raise Exception(error_msg)
 
 
-@tool
 def enrich_schema_with_xpath(schema_template: Dict, html_content: str) -> Dict:
     """
     为预定义的Schema模板补充xpath和value_sample信息

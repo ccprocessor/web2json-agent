@@ -90,14 +90,21 @@ class CodePhase(BasePhase):
                 self.progress_callback("code_iteration", f"代码迭代第 {idx}/{total_rounds} 轮", start_progress)
 
             try:
-                # 复用 Schema 阶段的 HTML（精简后的）
-                html_path = schema_round.get('html_path')
-                if not html_path:
-                    logger.error(f"  ✗ Schema阶段第 {idx} 轮缺少HTML路径")
-                    continue
+                # 优先使用内存中的HTML内容（减少磁盘I/O）
+                html_content = schema_round.get('html_content')
+                html_path = schema_round.get('html_path')  # 总是获取路径（用于记录）
 
-                with open(html_path, 'r', encoding='utf-8') as f:
-                    html_content = f.read()
+                # 降级方案：如果内存中没有（向后兼容），再从磁盘读取
+                if not html_content:
+                    if not html_path:
+                        logger.error(f"  ✗ Schema阶段第 {idx} 轮缺少HTML数据（内存和磁盘都无法获取）")
+                        continue
+
+                    with open(html_path, 'r', encoding='utf-8') as f:
+                        html_content = f.read()
+                    logger.debug(f"  从磁盘读取HTML: {html_path}")
+                else:
+                    logger.debug(f"  使用内存中的HTML内容")
 
                 # 生成或优化解析代码
                 if idx == 1:

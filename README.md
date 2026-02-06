@@ -74,6 +74,21 @@ web2json setup
 
 ---
 
+## 📚 Complete User Guide
+
+For a comprehensive tutorial covering installation, configuration, and all usage scenarios, see:
+
+**[📖 Web2JSON-Agent Complete User Guide (中文)](docs/Web2JsonAgent使用指南.md)**
+
+This guide includes:
+- Detailed installation steps
+- Configuration methods (interactive wizard, config file, environment variables)
+- Layout clustering for mixed HTML types
+- Complete API examples and use cases
+- FAQ and troubleshooting
+
+---
+
 ## 🐍 API Usage
 
 Web2JSON provides five simple APIs. Perfect for databases, APIs, and real-time processing!
@@ -90,20 +105,23 @@ from web2json import Web2JsonConfig, extract_data
 config = Web2JsonConfig(
     name="my_project",
     html_path="html_samples/",
-    # iteration_rounds=3  # default 3
-    # enable_schema_edit=True  # Uncomment to manually edit schema
+    # save=['schema', 'code', 'data'],  # Save to local disk
+    # output_path="./results",  # Custom output directory (default: "output")
 )
 
 result = extract_data(config)
 
-# print(result.final_schema)        # Dict: extracted schema
-# print(result.parser_code)          # str: generated parser code
-# print(result.parsed_data[0])       # List[Dict]: parsed JSON data
+# Results are always returned in memory
+print(result.final_schema)        # Dict: extracted schema
+print(result.parser_code)          # str: generated parser code
+print(result.parsed_data[0])       # List[Dict]: parsed JSON data
 ```
 
 **Predefined Mode** - Extract only specific fields:
 
 ```python
+from web2json import Web2JsonConfig, extract_data
+
 config = Web2JsonConfig(
     name="articles",
     html_path="html_samples/",
@@ -112,11 +130,13 @@ config = Web2JsonConfig(
         "author": "string",
         "date": "string",
         "content": "string"
-    }
+    },
+    # save=['schema', 'code', 'data'],  # Save to local disk
+    # output_path="./results",  # Custom output directory
 )
 
 result = extract_data(config)
-# Returns: ExtractDataResult with schema, code, and data
+# Returns: ExtractDataResult with schema, code, and data in memory
 ```
 
 ---
@@ -131,14 +151,14 @@ from web2json import Web2JsonConfig, extract_schema
 config = Web2JsonConfig(
     name="schema_only",
     html_path="html_samples/",
-    # iteration_rounds=3
-    # enable_schema_edit=True  # Uncomment to manually edit schema
+    # save=['schema'],  # Save schema to disk
+    # output_path="./schemas",  # Custom output directory
 )
 
 result = extract_schema(config)
 
-# print(result.final_schema)         # Dict: final schema
-# print(result.intermediate_schemas) # List[Dict]: iteration history
+print(result.final_schema)         # Dict: final schema
+print(result.intermediate_schemas) # List[Dict]: iteration history
 ```
 
 ---
@@ -160,12 +180,15 @@ my_schema = {
 config = Web2JsonConfig(
     name="my_parser",
     html_path="html_samples/",
-    schema=my_schema
+    schema=my_schema,
+    # save=['code'],  # Save parser code and schema to disk
+    # output_path="./parsers",  # Custom output directory
 )
+
 result = infer_code(config)
 
-# print(result.parser_code)  # str: BeautifulSoup parser code
-# print(result.schema)       # Dict: schema used
+print(result.parser_code)  # str: BeautifulSoup parser code
+print(result.schema)       # Dict: schema used
 ```
 
 ---
@@ -177,23 +200,20 @@ Use parser code to extract data from HTML files.
 ```python
 from web2json import Web2JsonConfig, extract_data_with_code
 
-# Parser code from previous step or loaded from file
-parser_code = """
-def parse_html(html_content):
-    # ... parser implementation
-"""
-
 config = Web2JsonConfig(
     name="parse_demo",
     html_path="new_html_files/",
-    parser_code=parser_code
+    parser_code="output/blog/parsers/final_parser.py",  # Path to parser .py file
+    # save=['data'],  # Save parsed data to disk
+    # output_path="./parse_results",  # Custom output directory
 )
+
 result = extract_data_with_code(config)
 
-# print(f"Success: {result.success_count}, Failed: {result.failed_count}")
-# for item in result.parsed_data:
-#     print(f"File: {item['filename']}")
-#     print(f"Data: {item['data']}")
+print(f"Success: {result.success_count}, Failed: {result.failed_count}")
+for item in result.parsed_data:
+    print(f"File: {item['filename']}")
+    print(f"Data: {item['data']}")
 ```
 
 ---
@@ -207,17 +227,20 @@ from web2json import Web2JsonConfig, classify_html_dir
 
 config = Web2JsonConfig(
     name="classify_demo",
-    html_path="mixed_html/"
+    html_path="mixed_html/",
+    # save=['report', 'files'],  # Save cluster report and copy files to subdirectories
+    # output_path="./cluster_analysis",  # Custom output directory
 )
+
 result = classify_html_dir(config)
 
-# print(f"Found {result.cluster_count} layout types")
-# print(f"Noise files: {len(result.noise_files)}")
+print(f"Found {result.cluster_count} layout types")
+print(f"Noise files: {len(result.noise_files)}")
 
-# for cluster_name, files in result.clusters.items():
-#     print(f"{cluster_name}: {len(files)} files")
-#     for file in files[:3]:
-#         print(f"  - {file}")
+for cluster_name, files in result.clusters.items():
+    print(f"{cluster_name}: {len(files)} files")
+    for file in files[:3]:
+        print(f"  - {file}")
 ```
 
 ---
@@ -230,9 +253,12 @@ result = classify_html_dir(config)
 |-----------|------|---------|-------------|
 | `name` | `str` | Required | Project name (for identification) |
 | `html_path` | `str` | Required | HTML directory or file path |
+| `output_path` | `str` | `"output"` | Output directory (used when save is specified) |
 | `iteration_rounds` | `int` | `3` | Number of samples for learning |
 | `schema` | `Dict` | `None` | Predefined schema (None = auto mode) |
 | `enable_schema_edit` | `bool` | `False` | Enable manual schema editing |
+| `parser_code` | `str` | `None` | Parser code (for extract_data_with_code) |
+| `save` | `List[str]` | `None` | Items to save locally (e.g., `['schema', 'code', 'data']`). None = memory only |
 
 **Standalone API Parameters:**
 

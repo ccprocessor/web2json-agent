@@ -21,11 +21,11 @@
 
 ---
 
-## 📋 DEMO
+## 📋 Demo
 
 
-https://github.com/user-attachments/assets/6eec23d4-5bf1-4837-af70-6f0a984d5464
 
+https://github.com/user-attachments/assets/c82e8e13-fc42-4d1f-a81a-4cec6e3f434b
 
 ---
 
@@ -74,6 +74,21 @@ web2json setup
 
 ---
 
+## 📚 完整使用指南
+
+查看完整的使用教程，涵盖安装、配置和所有使用场景：
+
+**[📖 Web2JSON-Agent 完整使用指南](Web2JsonAgent使用指南.md)**
+
+使用指南包含：
+- 详细的安装步骤
+- 配置方法（交互式向导、配置文件、环境变量）
+- 混合布局HTML的布局聚类功能
+- 完整的API示例和使用场景
+- 常见问题解答和故障排除
+
+---
+
 ## 🐍 API 使用
 
 Web2JSON 提供五个简洁的 API，返回内存数据对象。适用于数据库、API 接口和实时处理场景。
@@ -90,13 +105,13 @@ from web2json import Web2JsonConfig, extract_data
 config = Web2JsonConfig(
     name="my_project",
     html_path="html_samples/",
-    # iteration_rounds=3
-    # enable_schema_edit=True  # 取消注释以手动编辑 schema
+    # save=['schema', 'code', 'data'],  # 保存到本地磁盘
+    # output_path="./results",  # 自定义输出目录（默认："output"）
 )
 
 result = extract_data(config)
 
-# 打印查看结果
+# 结果始终在内存中返回
 print(result.final_schema)        # Dict: 提取的 schema
 print(result.parser_code)          # str: 生成的解析器代码
 print(result.parsed_data[0])       # List[Dict]: 解析的 JSON 数据
@@ -105,6 +120,8 @@ print(result.parsed_data[0])       # List[Dict]: 解析的 JSON 数据
 **预定义模式** - 仅提取指定字段：
 
 ```python
+from web2json import Web2JsonConfig, extract_data
+
 config = Web2JsonConfig(
     name="articles",
     html_path="html_samples/",
@@ -113,11 +130,13 @@ config = Web2JsonConfig(
         "author": "string",
         "date": "string",
         "content": "string"
-    }
+    },
+    # save=['schema', 'code', 'data'],  # 保存到本地磁盘
+    # output_path="./results",  # 自定义输出目录
 )
 
 result = extract_data(config)
-# 返回：ExtractDataResult，包含 schema、code 和 data
+# 返回：ExtractDataResult，包含内存中的 schema、code 和 data
 ```
 
 ---
@@ -132,8 +151,8 @@ from web2json import Web2JsonConfig, extract_schema
 config = Web2JsonConfig(
     name="schema_only",
     html_path="html_samples/",
-    iteration_rounds=3
-    # enable_schema_edit=True  # 取消注释以手动编辑 schema
+    # save=['schema'],  # 保存到本地磁盘
+    # output_path="./schemas",  # 自定义输出目录
 )
 
 result = extract_schema(config)
@@ -161,16 +180,15 @@ my_schema = {
 config = Web2JsonConfig(
     name="my_parser",
     html_path="html_samples/",
-    schema=my_schema
+    schema=my_schema,
+    # save=['code'],  # 保存到本地磁盘
+    # output_path="./parsers",  # 自定义输出目录
 )
+
 result = infer_code(config)
 
-# print(result.parser_code)  # str: BeautifulSoup 解析器代码
-# print(result.schema)       # Dict: 使用的 schema
-#
-# # 保存或立即使用
-# with open("my_parser.py", "w") as f:
-#     f.write(result.parser_code)
+print(result.parser_code)  # str: BeautifulSoup 解析器代码
+print(result.schema)       # Dict: 使用的 schema
 ```
 
 ---
@@ -182,17 +200,14 @@ result = infer_code(config)
 ```python
 from web2json import Web2JsonConfig, extract_data_with_code
 
-# 来自上一步的解析器代码或从文件加载
-parser_code = """
-def parse_html(html_content):
-    # ... 解析器实现
-"""
-
 config = Web2JsonConfig(
     name="parse_demo",
     html_path="new_html_files/",
-    parser_code=parser_code
+    parser_code="output/blog/parsers/final_parser.py",  # Parser .py 文件路径
+    # save=['data'],  # 保存到本地磁盘
+    # output_path="./parse_results",  # 自定义输出目录
 )
+
 result = extract_data_with_code(config)
 
 print(f"成功: {result.success_count}, 失败: {result.failed_count}")
@@ -212,15 +227,16 @@ from web2json import Web2JsonConfig, classify_html_dir
 
 config = Web2JsonConfig(
     name="classify_demo",
-    html_path="mixed_html/"
+    html_path="mixed_html/",
+    # save=['report', 'files'],  # 保存聚类报告并复制文件到子目录
+    # output_path="./cluster_analysis",  # 自定义输出目录
 )
+
 result = classify_html_dir(config)
 
-# 直接访问聚类结果
 print(f"发现 {result.cluster_count} 种布局类型")
 print(f"噪声文件: {len(result.noise_files)}")
 
-# 遍历各个簇
 for cluster_name, files in result.clusters.items():
     print(f"{cluster_name}: {len(files)} 个文件")
     for file in files[:3]:
@@ -237,9 +253,12 @@ for cluster_name, files in result.clusters.items():
 |-----------|------|---------|-------------|
 | `name` | `str` | 必需 | 项目名称（用于标识） |
 | `html_path` | `str` | 必需 | HTML 目录或文件路径 |
+| `output_path` | `str` | `"output"` | 输出目录（当指定 save 时使用） |
 | `iteration_rounds` | `int` | `3` | 用于学习的样本数量 |
 | `schema` | `Dict` | `None` | 预定义 schema（None = 自动模式） |
 | `enable_schema_edit` | `bool` | `False` | 启用手动编辑 schema |
+| `parser_code` | `str` | `None` | 解析器代码（用于 extract_data_with_code） |
+| `save` | `List[str]` | `None` | 保存到本地的项目（如 `['schema', 'code', 'data']`）。None = 仅内存 |
 
 **独立 API 参数：**
 

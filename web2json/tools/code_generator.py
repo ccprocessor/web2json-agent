@@ -8,11 +8,9 @@ from pathlib import Path
 from typing import Dict
 from loguru import logger
 from web2json.config.settings import settings
-from langchain_core.tools import tool
 from web2json.prompts.code_generator import CodeGeneratorPrompts
 
 
-@tool
 def generate_parser_code(
     html_content: str,
     target_json: Dict,

@@ -170,6 +170,7 @@ class SchemaPhase(BasePhase):
                     'url': html_file_path,
                     'html_original_path': simplified['html_original_path'],
                     'html_path': simplified['html_path'],
+                    'html_content': simplified['html_content'],
                     'html_schema': schema.copy(),
                     'html_schema_path': schema_result['schema_path'],
                     'schema': schema.copy(),
