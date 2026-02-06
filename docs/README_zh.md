@@ -149,7 +149,7 @@ print(result.intermediate_schemas) # List[Dict]: 迭代历史
 从 schema（Dict 或上一步的结果）生成解析器代码。
 
 ```python
-from web2json import infer_code
+from web2json import Web2JsonConfig, infer_code
 
 # 使用上一步的 schema 或手动定义
 my_schema = {
@@ -158,14 +158,16 @@ my_schema = {
     "content": "string"
 }
 
-result = infer_code(
-    schema=my_schema,
-    html_path="html_samples/"
+config = Web2JsonConfig(
+    name="my_parser",
+    html_path="html_samples/",
+    schema=my_schema
 )
+result = infer_code(config)
 
 # print(result.parser_code)  # str: BeautifulSoup 解析器代码
 # print(result.schema)       # Dict: 使用的 schema
-# 
+#
 # # 保存或立即使用
 # with open("my_parser.py", "w") as f:
 #     f.write(result.parser_code)
@@ -178,7 +180,7 @@ result = infer_code(
 使用解析器代码从 HTML 文件提取数据。
 
 ```python
-from web2json import extract_data_with_code
+from web2json import Web2JsonConfig, extract_data_with_code
 
 # 来自上一步的解析器代码或从文件加载
 parser_code = """
@@ -186,10 +188,12 @@ def parse_html(html_content):
     # ... 解析器实现
 """
 
-result = extract_data_with_code(
-    parser_code=parser_code,
-    html_path="new_html_files/"
+config = Web2JsonConfig(
+    name="parse_demo",
+    html_path="new_html_files/",
+    parser_code=parser_code
 )
+result = extract_data_with_code(config)
 
 print(f"成功: {result.success_count}, 失败: {result.failed_count}")
 for item in result.parsed_data:
@@ -204,9 +208,13 @@ for item in result.parsed_data:
 按布局相似度对 HTML 文件分组（适用于混合布局数据集）。
 
 ```python
-from web2json import classify_html_dir
+from web2json import Web2JsonConfig, classify_html_dir
 
-result = classify_html_dir(html_path="mixed_html/")
+config = Web2JsonConfig(
+    name="classify_demo",
+    html_path="mixed_html/"
+)
+result = classify_html_dir(config)
 
 # 直接访问聚类结果
 print(f"发现 {result.cluster_count} 种布局类型")
@@ -239,9 +247,9 @@ for cluster_name, files in result.clusters.items():
 |-----|------|--------|
 | `extract_data` | `config: Web2JsonConfig` | `ExtractDataResult` |
 | `extract_schema` | `config: Web2JsonConfig` | `ExtractSchemaResult` |
-| `infer_code` | `schema: Dict, html_path: str` | `InferCodeResult` |
-| `extract_data_with_code` | `parser_code: str, html_path: str` | `ParseResult` |
-| `classify_html_dir` | `html_path: str` | `ClusterResult` |
+| `infer_code` | `config: Web2JsonConfig` | `InferCodeResult` |
+| `extract_data_with_code` | `config: Web2JsonConfig` | `ParseResult` |
+| `classify_html_dir` | `config: Web2JsonConfig` | `ClusterResult` |
 
 **所有结果对象都提供：**
 - 通过对象属性直接访问数据
@@ -254,19 +262,41 @@ for cluster_name, files in result.clusters.items():
 
 ```python
 # 需要立即获取数据？ → extract_data
+config = Web2JsonConfig(name="my_run", html_path="html_samples/")
 result = extract_data(config)
 print(result.parsed_data)
 
 # 想先查看/编辑 schema？ → extract_schema + infer_code
+config = Web2JsonConfig(name="schema_run", html_path="html_samples/")
 schema_result = extract_schema(config)
-code_result = infer_code(schema=schema_result.final_schema, html_path="...")
-data_result = extract_data_with_code(parser_code=code_result.parser_code, ...)
+
+# 根据需要编辑 schema，然后生成代码
+config = Web2JsonConfig(
+    name="code_run",
+    html_path="html_samples/",
+    schema=schema_result.final_schema
+)
+code_result = infer_code(config)
+
+# 使用生成的代码进行解析
+config = Web2JsonConfig(
+    name="parse_run",
+    html_path="new_html_files/",
+    parser_code=code_result.parser_code
+)
+data_result = extract_data_with_code(config)
 
 # 已有解析器代码，需要解析更多文件？ → extract_data_with_code
-result = extract_data_with_code(parser_code=my_parser_code, html_path="...")
+config = Web2JsonConfig(
+    name="parse_more",
+    html_path="more_files/",
+    parser_code=my_parser_code
+)
+result = extract_data_with_code(config)
 
 # 混合布局（列表页 + 详情页）？ → classify_html_dir
-result = classify_html_dir(html_path="...")
+config = Web2JsonConfig(name="classify", html_path="mixed_html/")
+result = classify_html_dir(config)
 ```
 
 ---

@@ -148,7 +148,7 @@ result = extract_schema(config)
 Generate parser code from a schema (Dict or from previous step).
 
 ```python
-from web2json import infer_code
+from web2json import Web2JsonConfig, infer_code
 
 # Use schema from previous step or define manually
 my_schema = {
@@ -157,10 +157,12 @@ my_schema = {
     "content": "string"
 }
 
-result = infer_code(
-    schema=my_schema,
-    html_path="html_samples/"
+config = Web2JsonConfig(
+    name="my_parser",
+    html_path="html_samples/",
+    schema=my_schema
 )
+result = infer_code(config)
 
 # print(result.parser_code)  # str: BeautifulSoup parser code
 # print(result.schema)       # Dict: schema used
@@ -173,7 +175,7 @@ result = infer_code(
 Use parser code to extract data from HTML files.
 
 ```python
-from web2json import extract_data_with_code
+from web2json import Web2JsonConfig, extract_data_with_code
 
 # Parser code from previous step or loaded from file
 parser_code = """
@@ -181,10 +183,12 @@ def parse_html(html_content):
     # ... parser implementation
 """
 
-result = extract_data_with_code(
-    parser_code=parser_code,
-    html_path="new_html_files/"
+config = Web2JsonConfig(
+    name="parse_demo",
+    html_path="new_html_files/",
+    parser_code=parser_code
 )
+result = extract_data_with_code(config)
 
 # print(f"Success: {result.success_count}, Failed: {result.failed_count}")
 # for item in result.parsed_data:
@@ -199,9 +203,13 @@ result = extract_data_with_code(
 Group HTML files by layout similarity (for mixed-layout datasets).
 
 ```python
-from web2json import classify_html_dir
+from web2json import Web2JsonConfig, classify_html_dir
 
-result = classify_html_dir(html_path="mixed_html/")
+config = Web2JsonConfig(
+    name="classify_demo",
+    html_path="mixed_html/"
+)
+result = classify_html_dir(config)
 
 # print(f"Found {result.cluster_count} layout types")
 # print(f"Noise files: {len(result.noise_files)}")
@@ -232,9 +240,9 @@ result = classify_html_dir(html_path="mixed_html/")
 |-----|------------|---------|
 | `extract_data` | `config: Web2JsonConfig` | `ExtractDataResult` |
 | `extract_schema` | `config: Web2JsonConfig` | `ExtractSchemaResult` |
-| `infer_code` | `schema: Dict, html_path: str` | `InferCodeResult` |
-| `extract_data_with_code` | `parser_code: str, html_path: str` | `ParseResult` |
-| `classify_html_dir` | `html_path: str` | `ClusterResult` |
+| `infer_code` | `config: Web2JsonConfig` | `InferCodeResult` |
+| `extract_data_with_code` | `config: Web2JsonConfig` | `ParseResult` |
+| `classify_html_dir` | `config: Web2JsonConfig` | `ClusterResult` |
 
 **All result objects provide:**
 - Direct access to data via object attributes
@@ -247,19 +255,41 @@ result = classify_html_dir(html_path="mixed_html/")
 
 ```python
 # Need data immediately? → extract_data
+config = Web2JsonConfig(name="my_run", html_path="html_samples/")
 result = extract_data(config)
 print(result.parsed_data)
 
 # Want to review/edit schema first? → extract_schema + infer_code
+config = Web2JsonConfig(name="schema_run", html_path="html_samples/")
 schema_result = extract_schema(config)
-code_result = infer_code(schema=schema_result.final_schema, html_path="...")
-data_result = extract_data_with_code(parser_code=code_result.parser_code, ...)
+
+# Edit schema if needed, then generate code
+config = Web2JsonConfig(
+    name="code_run",
+    html_path="html_samples/",
+    schema=schema_result.final_schema
+)
+code_result = infer_code(config)
+
+# Parse with the generated code
+config = Web2JsonConfig(
+    name="parse_run",
+    html_path="new_html_files/",
+    parser_code=code_result.parser_code
+)
+data_result = extract_data_with_code(config)
 
 # Have parser code, need to parse more files? → extract_data_with_code
-result = extract_data_with_code(parser_code=my_parser_code, html_path="...")
+config = Web2JsonConfig(
+    name="parse_more",
+    html_path="more_files/",
+    parser_code=my_parser_code
+)
+result = extract_data_with_code(config)
 
 # Mixed layouts (list + detail pages)? → classify_html_dir
-result = classify_html_dir(html_path="...")
+config = Web2JsonConfig(name="classify", html_path="mixed_html/")
+result = classify_html_dir(config)
 ```
 
 ---
