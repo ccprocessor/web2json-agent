@@ -4,10 +4,8 @@
 """
 from pathlib import Path
 from loguru import logger
-from langchain_core.tools import tool
 
 
-@tool
 def get_html_from_file(file_path: str) -> str:
     """
     从本地文件读取HTML源代码

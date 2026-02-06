@@ -377,11 +377,6 @@ def main():
         action='store_true',
         help='是否按布局聚类分别生成解析器（默认: 否，使用全部HTML生成单个解析器）'
     )
-    parser.add_argument(
-        '--skip-config-check',
-        action='store_true',
-        help='跳过配置检查（不推荐）'
-    )
 
     # 解析参数
     args = parser.parse_args()

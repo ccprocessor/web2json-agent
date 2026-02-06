@@ -104,6 +104,8 @@ class Web2JsonConfig:
         schema: Schema模板（可选，为None时使用auto模式，有值时使用predefined模式）
         enable_schema_edit: 是否启用schema人工编辑（默认False，仅在auto模式下有效）
         parser_code: Parser代码内容（可选，用于extract_data_with_code API）
+        save: 要保存到本地的内容列表（可选，例如 ['schema', 'code', 'data']）
+              为None或空列表时不保存，仅在内存中返回结果
 
     Example:
         >>> config = Web2JsonConfig(
@@ -111,7 +113,8 @@ class Web2JsonConfig:
         ...     html_path="html_samples/",
         ...     output_path="output/",
         ...     iteration_rounds=3,
-        ...     schema={"title": "string", "author": "string"}
+        ...     schema={"title": "string", "author": "string"},
+        ...     save=['schema', 'code', 'data']
         ... )
     """
     name: str
@@ -121,6 +124,7 @@ class Web2JsonConfig:
     schema: Optional[Dict] = None
     enable_schema_edit: bool = False
     parser_code: Optional[str] = None
+    save: Optional[List[str]] = None
 
     def __post_init__(self):
         """验证配置"""
@@ -130,6 +134,14 @@ class Web2JsonConfig:
     def get_full_output_path(self) -> str:
         """获取完整输出路径"""
         return f"{self.output_path}/{self.name}"
+
+    def should_save(self) -> bool:
+        """判断是否需要保存到本地"""
+        return self.save is not None and len(self.save) > 0
+
+    def should_save_item(self, item: str) -> bool:
+        """判断是否需要保存特定项"""
+        return self.should_save() and item in self.save
 
     def is_auto_mode(self) -> bool:
         """判断是否为auto模式"""
@@ -151,38 +163,113 @@ def _setup_logger():
 
 
 def _read_html_files(directory_path: str) -> List[str]:
-    """从目录读取HTML文件列表
+    """从目录或单个文件读取HTML文件列表
 
     Args:
-        directory_path: HTML文件目录路径
+        directory_path: HTML文件目录路径或单个文件路径
 
     Returns:
         HTML文件路径列表（绝对路径）
 
     Raises:
-        FileNotFoundError: 目录不存在或没有HTML文件
-        ValueError: 路径不是目录
+        FileNotFoundError: 路径不存在或没有HTML文件
     """
-    dir_path = Path(directory_path)
+    path = Path(directory_path)
 
-    if not dir_path.exists():
-        raise FileNotFoundError(f"目录不存在: {directory_path}")
+    if not path.exists():
+        raise FileNotFoundError(f"路径不存在: {directory_path}")
 
-    if not dir_path.is_dir():
-        raise ValueError(f"路径不是一个目录: {directory_path}")
+    # 如果是单个文件，直接返回
+    if path.is_file():
+        if path.suffix.lower() in ['.html', '.htm']:
+            return [str(path.absolute())]
+        else:
+            raise ValueError(f"文件不是HTML文件: {directory_path}")
 
-    # 查找所有HTML文件
-    html_files = []
-    for ext in ['*.html', '*.htm']:
-        html_files.extend(dir_path.glob(ext))
+    # 如果是目录，查找所有HTML文件
+    if path.is_dir():
+        html_files = []
+        for ext in ['*.html', '*.htm']:
+            html_files.extend(path.glob(ext))
 
-    # 转换为绝对路径字符串并排序
-    html_files = sorted([str(f.absolute()) for f in html_files])
+        # 转换为绝对路径字符串并排序
+        html_files = sorted([str(f.absolute()) for f in html_files])
 
-    if not html_files:
-        raise FileNotFoundError(f"目录中没有找到HTML文件: {directory_path}")
+        if not html_files:
+            raise FileNotFoundError(f"目录中没有找到HTML文件: {directory_path}")
 
-    return html_files
+        return html_files
+
+    raise ValueError(f"路径既不是文件也不是目录: {directory_path}")
+
+
+def _cleanup_unwanted_files(output_path: Path, save_items: List[str], api_type: str = "extract_data"):
+    """
+    清理不需要保存的文件，只保留save列表中指定的内容
+
+    Args:
+        output_path: 输出目录路径
+        save_items: 要保存的内容列表（如 ['schema', 'code', 'data']）
+        api_type: API类型，用于确定可清理的目录
+    """
+    import shutil
+
+    if not output_path.exists():
+        return
+
+    # 定义各个API支持保存的内容及其对应的文件/目录
+    save_mappings = {
+        'extract_data': {
+            'schema': ['schemas/final_schema.json'],
+            'code': ['parsers/final_parser.py'],
+            'data': ['result/'],
+        },
+        'extract_schema': {
+            'schema': ['schemas/final_schema.json'],
+        },
+        'infer_code': {
+            'code': ['parsers/final_parser.py'],
+            'schema': ['schemas/final_schema.json'],
+        },
+        'extract_data_with_code': {
+            'data': ['result/'],
+            'code': ['parsers/final_parser.py'],
+        },
+        'classify_html_dir': {
+            'report': ['cluster_report.json', 'cluster_info.txt'],
+            'files': ['clusters/'],
+        }
+    }
+
+    mapping = save_mappings.get(api_type, {})
+
+    # 第一步：复制需要保留的文件到根目录（方便访问）
+    for item in save_items:
+        if item == 'schema':
+            src = output_path / 'schemas' / 'final_schema.json'
+            dst = output_path / 'schema.json'
+            if src.exists() and not dst.exists():
+                shutil.copy2(src, dst)
+        elif item == 'code':
+            src = output_path / 'parsers' / 'final_parser.py'
+            dst = output_path / 'final_parser.py'
+            if src.exists() and not dst.exists():
+                shutil.copy2(src, dst)
+
+    # 第二步：删除所有临时目录（如果不需要保留）
+    always_remove = ['html_original', 'html_simplified', 'schemas', 'parsers']
+    for dir_name in always_remove:
+        dir_path = output_path / dir_name
+        if dir_path.exists() and dir_path.is_dir():
+            shutil.rmtree(dir_path)
+            logger.debug(f"  已清理临时目录: {dir_name}/")
+
+    # 第三步：清理result目录（如果不需要保留data）
+    if 'data' not in save_items:
+        result_dir = output_path / 'result'
+        if result_dir.exists() and result_dir.is_dir():
+            shutil.rmtree(result_dir)
+            logger.debug(f"  已清理结果目录: result/")
 
 
 def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
@@ -241,17 +328,26 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
     logger.info(f"  样本数: {config.iteration_rounds}")
     if config.is_auto_mode():
         logger.info(f"  人工编辑: {'启用' if config.enable_schema_edit else '禁用'}")
+    if config.should_save():
+        logger.info(f"  保存内容: {', '.join(config.save)}")
+        logger.info(f"  输出路径: {config.get_full_output_path()}")
 
     # 读取HTML文件
     html_files = _read_html_files(config.html_path)
     logger.info(f"找到 {len(html_files)} 个HTML文件")
 
-    # 创建临时输出目录（用于Agent内部处理，最后会清理）
+    # 根据是否需要保存决定使用临时目录还是持久目录
     import tempfile
     import shutil
     import os
-    temp_output_dir = tempfile.mkdtemp(prefix="web2json_")
-    output_path = Path(temp_output_dir)
+
+    use_temp_dir = not config.should_save()
+    if use_temp_dir:
+        temp_output_dir = tempfile.mkdtemp(prefix="web2json_")
+        output_path = Path(temp_output_dir)
+    else:
+        output_path = Path(config.get_full_output_path())
+        output_path.mkdir(parents=True, exist_ok=True)
 
     try:
         # 确定schema模式
@@ -383,9 +479,15 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
         )
 
     finally:
-        # 清理临时目录
-        if output_path.exists():
-            shutil.rmtree(output_path)
+        # 根据配置决定清理策略
+        if use_temp_dir:
+            # 临时目录：完全清理
+            if output_path.exists():
+                shutil.rmtree(output_path)
+        else:
+            # 持久目录：选择性清理，只保留save列表中的内容
+            _cleanup_unwanted_files(output_path, config.save, api_type="extract_data")
+            logger.info(f"✓ 结果已保存到: {output_path}")
 
 
 def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
@@ -429,17 +531,26 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
     logger.info(f"  HTML路径: {config.html_path}")
     logger.info(f"  样本数: {config.iteration_rounds}")
     logger.info(f"  人工编辑: {'启用' if config.enable_schema_edit else '禁用'}")
+    if config.should_save():
+        logger.info(f"  保存内容: {', '.join(config.save)}")
+        logger.info(f"  输出路径: {config.get_full_output_path()}")
 
     # 读取HTML文件
     html_files = _read_html_files(config.html_path)
     logger.info(f"找到 {len(html_files)} 个HTML文件")
 
-    # 创建临时输出目录
+    # 根据是否需要保存决定使用临时目录还是持久目录
     import tempfile
     import shutil
     import os
-    temp_output_dir = tempfile.mkdtemp(prefix="web2json_schema_")
-    output_path = Path(temp_output_dir)
+
+    use_temp_dir = not config.should_save()
+    if use_temp_dir:
+        temp_output_dir = tempfile.mkdtemp(prefix="web2json_schema_")
+        output_path = Path(temp_output_dir)
+    else:
+        output_path = Path(config.get_full_output_path())
+        output_path.mkdir(parents=True, exist_ok=True)
 
     try:
         # 创建Agent并只执行Schema学习阶段
@@ -528,9 +639,15 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
         )
 
     finally:
-        # 清理临时目录
-        if output_path.exists():
-            shutil.rmtree(output_path)
+        # 根据配置决定清理策略
+        if use_temp_dir:
+            # 临时目录：完全清理
+            if output_path.exists():
+                shutil.rmtree(output_path)
+        else:
+            # 持久目录：选择性清理，只保留save列表中的内容
+            _cleanup_unwanted_files(output_path, config.save, api_type="extract_schema")
+            logger.info(f"✓ 结果已保存到: {output_path}")
 
 
 def infer_code(config: Web2JsonConfig) -> InferCodeResult:
@@ -589,6 +706,10 @@ def infer_code(config: Web2JsonConfig) -> InferCodeResult:
         logger.info(f"  模式: Auto（自动学习Schema）")
         logger.info(f"  迭代轮数: {config.iteration_rounds}")
 
+    if config.should_save():
+        logger.info(f"  保存内容: {', '.join(config.save)}")
+        logger.info(f"  输出路径: {config.get_full_output_path()}")
+
     # 处理HTML路径（可能是目录或单个文件）
     html_file_path = Path(config.html_path)
     if html_file_path.is_dir():
@@ -600,11 +721,17 @@ def infer_code(config: Web2JsonConfig) -> InferCodeResult:
 
     logger.info(f"找到 {len(html_files)} 个HTML文件")
 
-    # 创建临时输出目录
+    # 根据是否需要保存决定使用临时目录还是持久目录
     import tempfile
     import shutil
-    temp_output_dir = tempfile.mkdtemp(prefix="web2json_code_")
-    output_dir = Path(temp_output_dir)
+
+    use_temp_dir = not config.should_save()
+    if use_temp_dir:
+        temp_output_dir = tempfile.mkdtemp(prefix="web2json_code_")
+        output_dir = Path(temp_output_dir)
+    else:
+        output_dir = Path(config.get_full_output_path())
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         # 创建Agent
@@ -693,9 +820,15 @@ def infer_code(config: Web2JsonConfig) -> InferCodeResult:
         )
 
     finally:
-        # 清理临时目录
-        if output_dir.exists():
-            shutil.rmtree(output_dir)
+        # 根据配置决定清理策略
+        if use_temp_dir:
+            # 临时目录：完全清理
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+        else:
+            # 持久目录：选择性清理，只保留save列表中的内容
+            _cleanup_unwanted_files(output_dir, config.save, api_type="infer_code")
+            logger.info(f"✓ 结果已保存到: {output_dir}")
 
 
 def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
@@ -708,7 +841,7 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
 
     Args:
         config: Web2JsonConfig配置对象
-            - parser_code: 必填，Parser代码字符串
+            - parser_code: 必填，Parser代码文件路径（.py文件）或代码字符串
             - html_path: 必填，HTML文件目录或单个HTML文件路径
             - name: 可选，运行名称（默认值会被忽略）
             - output_path: 可选，输出路径（默认值会被忽略）
@@ -721,15 +854,14 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
     Raises:
         Exception: 执行失败时抛出异常
         ValueError: parser_code未提供时抛出异常
-        FileNotFoundError: HTML文件不存在
+        FileNotFoundError: HTML文件或parser文件不存在
 
     Example:
-        >>> # 使用 infer_code 的结果
-        >>> code_result = infer_code(config)
+        >>> # 使用 .py 文件路径
         >>> parse_config = Web2JsonConfig(
         ...     name="parse_demo",
         ...     html_path="new_html_samples/",
-        ...     parser_code=code_result.parser_code
+        ...     parser_code="output/blog/parsers/final_parser.py"
         ... )
         >>> parse_result = extract_data_with_code(parse_config)
         >>> for item in parse_result.parsed_data[:2]:
@@ -742,8 +874,40 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
     if not config.parser_code:
         raise ValueError("extract_data_with_code 需要提供 parser_code 参数")
 
-    logger.info(f"[API] extract_data_with_code - 使用代码解析")
+    # 检测 parser_code 是文件路径还是代码字符串
+    parser_code_content = config.parser_code
+    parser_code_path = Path(config.parser_code)
+
+    # 判断是否可能是文件路径（包含 .py 扩展名或路径分隔符）
+    looks_like_path = '.py' in config.parser_code or '/' in config.parser_code or '\\' in config.parser_code
+
+    if looks_like_path:
+        # 如果看起来像文件路径，检查文件是否存在
+        if parser_code_path.exists() and parser_code_path.is_file():
+            # 文件存在，读取内容
+            logger.info(f"[API] extract_data_with_code - 使用代码解析")
+            logger.info(f"  Parser文件: {config.parser_code}")
+            try:
+                with open(parser_code_path, 'r', encoding='utf-8') as f:
+                    parser_code_content = f.read()
+                logger.info(f"  ✓ Parser代码已加载（{len(parser_code_content)} 字符）")
+            except Exception as e:
+                raise Exception(f"读取Parser文件失败: {str(e)}")
+        else:
+            # 文件不存在
+            raise FileNotFoundError(
+                f"Parser文件不存在: {config.parser_code}\n"
+                f"请确认文件路径是否正确，或者传入 Python 代码字符串。"
+            )
+    else:
+        # 当作代码字符串处理
+        logger.info(f"[API] extract_data_with_code - 使用代码解析")
+        logger.info(f"  Parser代码长度: {len(parser_code_content)} 字符")
+
     logger.info(f"  HTML路径: {config.html_path}")
+    if config.should_save():
+        logger.info(f"  保存内容: {', '.join(config.save)}")
+        logger.info(f"  输出路径: {config.get_full_output_path()}")
 
     # 处理HTML路径（可能是目录或单个文件）
     html_file_path = Path(config.html_path)
@@ -756,15 +920,21 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
 
     logger.info(f"找到 {len(html_files)} 个HTML文件")
 
-    # 创建临时目录
+    # 根据是否需要保存决定使用临时目录还是持久目录
     import tempfile
     import shutil
-    temp_output_dir = tempfile.mkdtemp(prefix="web2json_parse_")
-    output_dir = Path(temp_output_dir)
+
+    use_temp_dir = not config.should_save()
+    if use_temp_dir:
+        temp_output_dir = tempfile.mkdtemp(prefix="web2json_parse_")
+        output_dir = Path(temp_output_dir)
+    else:
+        output_dir = Path(config.get_full_output_path())
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # 创建临时parser文件
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as tmp_parser:
-        tmp_parser.write(config.parser_code)
+        tmp_parser.write(parser_code_content)
         temp_parser_path = tmp_parser.name
 
     try:
@@ -807,12 +977,20 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
         )
 
     finally:
-        # 清理临时文件
+        # 清理临时parser文件
         import os
         if os.path.exists(temp_parser_path):
             os.unlink(temp_parser_path)
-        if output_dir.exists():
-            shutil.rmtree(output_dir)
+
+        # 根据配置决定清理策略
+        if use_temp_dir:
+            # 临时目录：完全清理
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+        else:
+            # 持久目录：选择性清理，只保留save列表中的内容
+            _cleanup_unwanted_files(output_dir, config.save, api_type="extract_data_with_code")
+            logger.info(f"✓ 结果已保存到: {output_dir}")
 
 
 def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
@@ -854,6 +1032,9 @@ def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
 
     logger.info(f"[API] classify_html_dir - HTML布局分类")
     logger.info(f"  HTML路径: {config.html_path}")
+    if config.should_save():
+        logger.info(f"  保存内容: {', '.join(config.save)}")
+        logger.info(f"  输出路径: {config.get_full_output_path()}")
 
     # 读取HTML文件
     html_files = _read_html_files(config.html_path)
@@ -908,6 +1089,73 @@ def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
         logger.info(f"  {'噪声点' if lbl == -1 else f'簇 {lbl}'}: {len(cluster_files)} 个文件")
 
     logger.info("✓ 分类完成")
+
+    # 如果需要保存，写入文件
+    if config.should_save():
+        import shutil
+        output_path = Path(config.get_full_output_path())
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        # 保存报告
+        if config.should_save_item('report'):
+            # 保存JSON格式的报告
+            report_json = output_path / 'cluster_report.json'
+            with open(report_json, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'clusters': clusters_dict,
+                    'labels': labels,
+                    'noise_files': noise_files,
+                    'cluster_count': cluster_count,
+                    'total_files': len(html_files)
+                }, f, ensure_ascii=False, indent=2)
+            logger.info(f"  ✓ 报告已保存: {report_json}")
+
+            # 保存文本格式的摘要
+            info_txt = output_path / 'cluster_info.txt'
+            with open(info_txt, 'w', encoding='utf-8') as f:
+                f.write(f"HTML布局聚类分析结果\n")
+                f.write(f"{'='*70}\n\n")
+                f.write(f"总文件数: {len(html_files)}\n")
+                f.write(f"识别出的布局簇数: {cluster_count}\n")
+                f.write(f"噪声点（未归类）: {noise_count}\n\n")
+                for lbl in sorted(set(labels)):
+                    cluster_files = [p for p, l in zip(html_files, labels) if l == lbl]
+                    if lbl == -1:
+                        f.write(f"噪声点: {len(cluster_files)} 个文件\n")
+                    else:
+                        f.write(f"簇 {lbl}: {len(cluster_files)} 个文件\n")
+                    for file_path in cluster_files[:5]:
+                        f.write(f"  - {Path(file_path).name}\n")
+                    if len(cluster_files) > 5:
+                        f.write(f"  ... 还有 {len(cluster_files)-5} 个文件\n")
+                    f.write("\n")
+            logger.info(f"  ✓ 摘要已保存: {info_txt}")
+
+        # 复制文件到聚类目录
+        if config.should_save_item('files'):
+            clusters_dir = output_path / 'clusters'
+            clusters_dir.mkdir(exist_ok=True)
+
+            for lbl in sorted(set(labels)):
+                cluster_files = [p for p, l in zip(html_files, labels) if l == lbl]
+                if not cluster_files:
+                    continue
+
+                if lbl == -1:
+                    cluster_subdir = clusters_dir / 'noise'
+                else:
+                    cluster_subdir = clusters_dir / f'cluster_{lbl}'
+
+                cluster_subdir.mkdir(exist_ok=True)
+
+                for src_file in cluster_files:
+                    src = Path(src_file)
+                    dst = cluster_subdir / src.name
+                    shutil.copy2(src, dst)
+
+            logger.info(f"  ✓ 文件已复制到: {clusters_dir}")
+
+        logger.info(f"✓ 结果已保存到: {output_path}")
 
     return ClusterResult(
         clusters=clusters_dict,

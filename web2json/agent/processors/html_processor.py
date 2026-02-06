@@ -60,7 +60,7 @@ class HtmlProcessor(BaseProcessor):
 
         try:
             # 1. 读取 HTML 文件内容
-            html_content = get_html_from_file.invoke({"file_path": html_file_path})
+            html_content = get_html_from_file(file_path=html_file_path)
 
             # 保存原始 HTML
             html_original_path = self.html_original_dir / f"schema_round_{idx}.html"
