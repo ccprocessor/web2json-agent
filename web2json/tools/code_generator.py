@@ -91,17 +91,37 @@ def generate_parser_code(
         parser_path.write_text(generated_code, encoding='utf-8')
 
         # 生成配置文件
-        config = {
-            'version': '1.0',
-            'round': round_num,
-            'fields': {
-                key: {
+        # 支持两种schema格式：
+        # 1. 简单格式: {"field": "string"}
+        # 2. 详细格式: {"field": {"type": "string", "description": "..."}}
+        fields = {}
+        for key, value in target_json.items():
+            if isinstance(value, dict):
+                # 详细格式
+                fields[key] = {
                     'type': value.get('type', 'string'),
                     'description': value.get('description', ''),
                     'required': True
                 }
-                for key, value in target_json.items()
-            },
+            elif isinstance(value, str):
+                # 简单格式
+                fields[key] = {
+                    'type': value,
+                    'description': '',
+                    'required': True
+                }
+            else:
+                # 其他类型，默认处理
+                fields[key] = {
+                    'type': str(value),
+                    'description': '',
+                    'required': True
+                }
+
+        config = {
+            'version': '1.0',
+            'round': round_num,
+            'fields': fields,
             'options': {
                 'encoding': 'utf-8',
                 'timeout': 30,
