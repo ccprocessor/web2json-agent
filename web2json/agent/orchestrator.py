@@ -18,7 +18,7 @@ class ParserAgent:
     通过给定一组HTML文件，自动生成能够解析这些页面的Python代码
     """
 
-    def __init__(self, output_dir: str = "output", schema_mode: str = None, schema_template: Dict = None, enable_schema_edit: bool = None, progress_callback=None):
+    def __init__(self, output_dir: str = "output", schema_mode: str = None, schema_template: Dict = None, enable_schema_edit: bool = None, progress_callback=None, save_to_disk: bool = True):
         """
         初始化Agent
 
@@ -28,6 +28,7 @@ class ParserAgent:
             schema_template: 预定义的Schema模板（当schema_mode=predefined时使用）
             enable_schema_edit: 是否启用Schema手动编辑模式
             progress_callback: 进度回调函数 callback(phase, step, percentage)
+            save_to_disk: 批量解析时是否保存到磁盘（默认True）
         """
         self.planner = AgentPlanner()
         self.schema_mode = schema_mode or settings.schema_mode
@@ -39,7 +40,8 @@ class ParserAgent:
             schema_mode=self.schema_mode,
             schema_template=self.schema_template,
             enable_schema_edit=self.enable_schema_edit,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            save_to_disk=save_to_disk
         )
         self.output_dir = Path(output_dir)
 
@@ -234,7 +236,10 @@ class ParserAgent:
             lines.append(f"  成功解析: {len(parse_result.get('parsed_files', []))}/{parse_result.get('total_files', 0)} 个文件")
             if parse_result.get('failed_files'):
                 lines.append(f"  失败: {len(parse_result['failed_files'])} 个文件")
-            lines.append(f"  结果保存目录: {parse_result.get('output_dir', '')}")
+            # 只在有实际保存目录时才打印
+            output_dir = parse_result.get('output_dir', '')
+            if output_dir:
+                lines.append(f"  结果保存目录: {output_dir}")
 
         lines.append("="*70)
 

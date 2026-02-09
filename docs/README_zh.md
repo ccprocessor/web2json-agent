@@ -204,8 +204,8 @@ config = Web2JsonConfig(
     name="parse_demo",
     html_path="new_html_files/",
     parser_code="output/blog/parsers/final_parser.py",  # Parser .py 文件路径
-    # save=['data'],  # 保存到本地磁盘
-    # output_path="./parse_results",  # 自定义输出目录
+    save=['data'],  # 保存到本地磁盘
+    output_path="./parse_results",  # 自定义输出目录
 )
 
 result = extract_data_with_code(config)
