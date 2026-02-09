@@ -17,14 +17,16 @@ from .base_processor import BaseProcessor
 class ParserProcessor(BaseProcessor):
     """解析器处理器 - 负责批量解析 HTML 文件"""
 
-    def __init__(self, result_dir: Path):
+    def __init__(self, result_dir: Path, save_to_disk: bool = True):
         """
         初始化解析器处理器
 
         Args:
             result_dir: 解析结果保存目录
+            save_to_disk: 是否保存到磁盘（默认True，False时仅在内存中处理）
         """
         self.result_dir = result_dir
+        self.save_to_disk = save_to_disk
 
     def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -42,22 +44,26 @@ class ParserProcessor(BaseProcessor):
                 'total_files': int,
                 'parsed_files': List[Dict],   # 成功解析的文件信息
                 'failed_files': List[Dict],   # 失败的文件信息
-                'output_dir': str,
+                'output_dir': str,            # 仅在save_to_disk=True时有值
+                'parsed_data': List[Dict],    # 解析后的数据（包含filename和data）
             }
         """
         html_files = input_data['html_files']
         parser_path = input_data['parser_path']
 
-        logger.info(f"\n{'='*70}")
-        logger.info(f"批量解析阶段：解析 {len(html_files)} 个 HTML 文件")
-        logger.info(f"{'='*70}")
+        # 只有保存模式才打印详细的阶段信息
+        if self.save_to_disk:
+            logger.info(f"\n{'='*70}")
+            logger.info(f"批量解析阶段：解析 {len(html_files)} 个 HTML 文件")
+            logger.info(f"{'='*70}")
 
         results = {
             'success': True,
             'total_files': len(html_files),
             'parsed_files': [],
             'failed_files': [],
-            'output_dir': str(self.result_dir),
+            'output_dir': str(self.result_dir) if self.save_to_disk else '',
+            'parsed_data': [],  # 存储解析后的数据（filename + data）
         }
 
         try:
@@ -80,18 +86,32 @@ class ParserProcessor(BaseProcessor):
                         # 规范化解析结果中的Unicode字符
                         parsed_data = self._normalize_result(parsed_data)
 
-                        # 确定保存路径（基于原文件名）
-                        json_filename = html_path.stem + '.json'
-                        json_path = self.result_dir / json_filename
+                        # 根据模式选择处理方式
+                        if self.save_to_disk:
+                            # 保存模式：写入磁盘
+                            json_filename = html_path.stem + '.json'
+                            json_path = self.result_dir / json_filename
 
-                        # 保存 JSON
-                        with open(json_path, 'w', encoding='utf-8') as f:
-                            json.dump(parsed_data, f, ensure_ascii=False, indent=2)
+                            # 保存 JSON
+                            with open(json_path, 'w', encoding='utf-8') as f:
+                                json.dump(parsed_data, f, ensure_ascii=False, indent=2)
 
-                        results['parsed_files'].append({
-                            'html_file': str(html_path),
-                            'json_file': str(json_path),
-                            'fields_count': len(parsed_data),
+                            results['parsed_files'].append({
+                                'html_file': str(html_path),
+                                'json_file': str(json_path),
+                                'fields_count': len(parsed_data),
+                            })
+                        else:
+                            # 内存模式：只保存到内存
+                            results['parsed_files'].append({
+                                'html_file': str(html_path),
+                                'fields_count': len(parsed_data),
+                            })
+
+                        # 总是收集到 parsed_data（供 API 返回）
+                        results['parsed_data'].append({
+                            'filename': html_path.name,
+                            'data': parsed_data
                         })
 
                         # 更新进度条
@@ -111,14 +131,17 @@ class ParserProcessor(BaseProcessor):
                         pbar.update(1)
 
             # 输出汇总
-            logger.info(f"\n{'='*70}")
-            logger.info("批量解析完成")
-            logger.info(f"{'='*70}")
-            logger.success(f"成功解析: {len(results['parsed_files'])}/{len(html_files)} 个文件")
-            if results['failed_files']:
-                logger.warning(f"失败: {len(results['failed_files'])} 个文件")
-            logger.info(f"结果保存目录: {self.result_dir}")
-            logger.info(f"{'='*70}\n")
+            if self.save_to_disk:
+                # 保存模式：打印完整的汇总信息
+                logger.info(f"\n{'='*70}")
+                logger.info("批量解析完成")
+                logger.info(f"{'='*70}")
+                logger.success(f"成功解析: {len(results['parsed_files'])}/{len(html_files)} 个文件")
+                if results['failed_files']:
+                    logger.warning(f"失败: {len(results['failed_files'])} 个文件")
+                logger.info(f"结果保存目录: {self.result_dir}")
+                logger.info(f"{'='*70}\n")
+            # 内存模式：不打印保存相关信息（进度条已经显示了解析进度）
 
             results['success'] = len(results['parsed_files']) > 0
             return results

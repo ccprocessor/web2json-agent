@@ -920,17 +920,23 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
 
     logger.info(f"找到 {len(html_files)} 个HTML文件")
 
+    # 确定是否需要保存到磁盘
+    should_save = config.should_save()
+
     # 根据是否需要保存决定使用临时目录还是持久目录
     import tempfile
     import shutil
 
-    use_temp_dir = not config.should_save()
-    if use_temp_dir:
-        temp_output_dir = tempfile.mkdtemp(prefix="web2json_parse_")
-        output_dir = Path(temp_output_dir)
-    else:
+    if should_save:
+        # 保存模式：使用持久目录
         output_dir = Path(config.get_full_output_path())
         output_dir.mkdir(parents=True, exist_ok=True)
+        use_temp_dir = False
+    else:
+        # 内存模式：不需要创建任何目录（ParserProcessor 不会写文件）
+        # 只需要一个占位目录路径（实际不会被使用）
+        output_dir = Path(tempfile.gettempdir()) / "web2json_placeholder"
+        use_temp_dir = False
 
     # 创建临时parser文件
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as tmp_parser:
@@ -939,7 +945,7 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
 
     try:
         # 创建Agent并执行批量解析
-        agent = ParserAgent(output_dir=str(output_dir))
+        agent = ParserAgent(output_dir=str(output_dir), save_to_disk=should_save)
 
         # 直接调用批量解析方法
         parse_result = agent.executor.parse_all_html_files(
@@ -951,17 +957,8 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
             error_msg = parse_result.get('error', '未知错误')
             raise Exception(f"批量解析失败: {error_msg}")
 
-        # 读取所有解析后的JSON数据到内存
-        results_dir = Path(parse_result.get('output_dir'))
-        parsed_data = []
-        if results_dir.exists():
-            for json_file in sorted(results_dir.glob("*.json")):
-                with open(json_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    parsed_data.append({
-                        'filename': json_file.name.replace('.json', '.html'),
-                        'data': data
-                    })
+        # 直接从 parse_result 中获取解析数据（已在内存中）
+        parsed_data = parse_result.get('parsed_data', [])
 
         success_count = len(parse_result.get('parsed_files', []))
         failed_count = len(parse_result.get('failed_files', []))
@@ -983,14 +980,11 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
             os.unlink(temp_parser_path)
 
         # 根据配置决定清理策略
-        if use_temp_dir:
-            # 临时目录：完全清理
-            if output_dir.exists():
-                shutil.rmtree(output_dir)
-        else:
-            # 持久目录：选择性清理，只保留save列表中的内容
+        if should_save:
+            # 保存模式：选择性清理，只保留save列表中的内容
             _cleanup_unwanted_files(output_dir, config.save, api_type="extract_data_with_code")
             logger.info(f"✓ 结果已保存到: {output_dir}")
+        # 内存模式：不需要清理（没有创建文件）
 
 
 def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
