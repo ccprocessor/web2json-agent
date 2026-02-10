@@ -1097,7 +1097,7 @@ def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
             with open(report_json, 'w', encoding='utf-8') as f:
                 json.dump({
                     'clusters': clusters_dict,
-                    'labels': labels,
+                    'labels': labels.tolist(),
                     'noise_files': noise_files,
                     'cluster_count': cluster_count,
                     'total_files': len(html_files)

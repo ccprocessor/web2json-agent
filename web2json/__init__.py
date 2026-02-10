@@ -1,10 +1,10 @@
 """
 web2json-agent - 智能网页解析代码生成器
 
-基于 AI 自动生成网页解析代码，返回纯内存数据对象，无需磁盘读写
+基于 AI 自动生成网页解析代码
 """
 
-__version__ = "1.1.4"
+__version__ = "1.1.5"
 __author__ = "YangGuoqiang"
 __email__ = "1041206149@qq.com"
 
