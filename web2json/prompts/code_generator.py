@@ -63,6 +63,26 @@ class CodeGeneratorPrompts:
 6. 代码尽量简洁，减少冗余
 7. 添加适当的错误处理
 8. **空值处理（必须）**：如果字段值为空（空字符串、空列表等），必须返回None而不是空值
+
+## XPath 书写规范（关键）
+使用 XPath 时必须遵循以下原则，以提高解析的稳定性和准确性：
+
+**1. 语义定位优于位置索引**
+- ✅ **推荐**：通过字段名（label）定位值
+  ```python
+  # 示例：通过"建筑年代"标签找对应的值
+  value = soup.xpath("//span[normalize-space()='建筑年代']/following-sibling::span/text()")
+  ```
+- ❌ **避免**：使用硬编码的位置索引
+  ```python
+  # 不要这样：元素顺序变化会导致失败
+  value = soup.xpath("//div[@class='text-item'][1]")
+  ```
+
+**XPath 实践原则总结**：
+- 核心思路：用**语义（label文本）+ 限定范围**，避免位置索引
+- class 匹配一律用 `contains()`
+- 优先在局部容器内搜索，而非全局查找
 {v2_extra_requirements}
 ## 输出格式 - 重要！
 **严格要求：**
@@ -216,6 +236,26 @@ if __name__ == '__main__':
 5. 添加适当的错误处理
 6. main函数是固定的，不要修改
 7. **空值处理（必须）**：如果字段值为空（空字符串、空列表等），必须返回None而不是空值
+
+## XPath 书写规范（关键）
+使用 XPath 时必须遵循以下原则，以提高解析的稳定性和准确性：
+
+**1. 语义定位优于位置索引**
+- ✅ **推荐**：通过字段名（label）定位值
+  ```python
+  # 示例：通过"建筑年代"标签找对应的值
+  value = soup.xpath("//span[normalize-space()='建筑年代']/following-sibling::span/text()")
+  ```
+- ❌ **避免**：使用硬编码的位置索引
+  ```python
+  # 不要这样：元素顺序变化会导致失败
+  value = soup.xpath("//div[@class='text-item'][1]")
+  ```
+
+**XPath 实践原则总结**：
+- 核心思路：用**语义（label文本）+ 限定范围**，避免位置索引
+- class 匹配一律用 `contains()`
+- 优先在局部容器内搜索，而非全局查找
 ## 输出格式 - 重要！
 **严格要求：**
 1. 直接输出纯Python代码，从 `import` 语句开始
