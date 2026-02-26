@@ -106,6 +106,7 @@ class Web2JsonConfig:
         parser_code: Parser代码内容（可选，用于extract_data_with_code API）
         save: 要保存到本地的内容列表（可选，例如 ['schema', 'code', 'data']）
               为None或空列表时不保存，仅在内存中返回结果
+        remove_null_fields: 是否清除值为null的字段（默认True）
 
     Example:
         >>> config = Web2JsonConfig(
@@ -114,7 +115,8 @@ class Web2JsonConfig:
         ...     output_path="output/",
         ...     iteration_rounds=3,
         ...     schema={"title": "string", "author": "string"},
-        ...     save=['schema', 'code', 'data']
+        ...     save=['schema', 'code', 'data'],
+        ...     remove_null_fields=True
         ... )
     """
     name: str
@@ -125,6 +127,7 @@ class Web2JsonConfig:
     enable_schema_edit: bool = False
     parser_code: Optional[str] = None
     save: Optional[List[str]] = None
+    remove_null_fields: bool = True
 
     def __post_init__(self):
         """验证配置"""
@@ -363,7 +366,7 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
             logger.info("启用Schema编辑模式，将在当前目录生成schema文件供编辑")
 
             # 步骤1: 先生成schema（不启用编辑）
-            agent = ParserAgent(output_dir=str(output_path))
+            agent = ParserAgent(output_dir=str(output_path), remove_null_fields=config.remove_null_fields)
             from web2json.agent.planner import AgentPlanner
             planner = AgentPlanner()
             plan = planner.create_plan(html_files, iteration_rounds=config.iteration_rounds)
@@ -431,7 +434,7 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
             final_schema = edited_schema
         else:
             # 正常流程：直接调用generate_parser
-            agent = ParserAgent(output_dir=str(output_path))
+            agent = ParserAgent(output_dir=str(output_path), remove_null_fields=config.remove_null_fields)
             result = agent.generate_parser(
                 html_files=html_files,
                 iteration_rounds=config.iteration_rounds,
@@ -554,7 +557,7 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
 
     try:
         # 创建Agent并只执行Schema学习阶段
-        agent = ParserAgent(output_dir=str(output_path))
+        agent = ParserAgent(output_dir=str(output_path), remove_null_fields=config.remove_null_fields)
 
         # 手动执行Schema阶段
         from web2json.agent.planner import AgentPlanner
@@ -735,7 +738,7 @@ def infer_code(config: Web2JsonConfig) -> InferCodeResult:
 
     try:
         # 创建Agent
-        agent = ParserAgent(output_dir=str(output_dir))
+        agent = ParserAgent(output_dir=str(output_dir), remove_null_fields=config.remove_null_fields)
 
         # 创建执行计划
         from web2json.agent.planner import AgentPlanner
@@ -945,7 +948,7 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
 
     try:
         # 创建Agent并执行批量解析
-        agent = ParserAgent(output_dir=str(output_dir), save_to_disk=should_save)
+        agent = ParserAgent(output_dir=str(output_dir), save_to_disk=should_save, remove_null_fields=config.remove_null_fields)
 
         # 直接调用批量解析方法
         parse_result = agent.executor.parse_all_html_files(

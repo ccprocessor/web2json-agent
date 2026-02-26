@@ -125,9 +125,73 @@ def remove_tags_by_types(root: html.HtmlElement, tag_type_list: List[str]) -> ht
     """
     if not tag_type_list:
         return root
-    xpath = '|'.join([f'.//{tag}' for tag in tag_type_list])
-    remove_targets = root.xpath(xpath)
-    remove_reversely(remove_targets)
+
+    # 特殊处理：在删除 head 标签之前，保留其中的 JSON script 标签
+    if 'head' in tag_type_list:
+        head_elements = root.xpath('.//head')
+        for head in head_elements:
+            # 找到 head 中所有包含 JSON 数据的 script 标签
+            json_scripts = []
+            for script in head.xpath('.//script'):
+                script_type = script.get('type', '').lower()
+                if script_type in ['application/json', 'application/ld+json']:
+                    json_scripts.append(script)
+
+            # 将 JSON script 标签移动到 body 的开头
+            if json_scripts:
+                body = root.xpath('.//body')
+                if body:
+                    body = body[0]
+                    for script in json_scripts:
+                        # 从 head 中移除
+                        head.remove(script)
+                        # 插入到 body 开头
+                        body.insert(0, script)
+
+    # 特殊处理 script 标签：保留包含数据的 script，删除 JavaScript 代码
+    if 'script' in tag_type_list:
+        # 识别包含数据的关键字（常见的数据变量名）
+        data_keywords = [
+            'var ytInitialData', 'window.ytInitialData',  # YouTube
+            'var ytInitialPlayerResponse', 'window.ytInitialPlayerResponse',  # YouTube
+            'window._sharedData', 'window.__additionalDataLoaded',  # Instagram
+            '__NEXT_DATA__', '__NUXT__',  # Next.js, Nuxt.js
+            'window.__INITIAL_STATE__', 'window.__PRELOADED_STATE__',  # Redux
+            '__APOLLO_STATE__',  # Apollo GraphQL
+        ]
+
+        remove_targets = []
+        for script in root.xpath('.//script'):
+            script_type = script.get('type', '').lower()
+            script_text = script.text or ''
+
+            # 保留条件：
+            # 1. 明确标记为 JSON 数据的 script
+            # 2. 包含常见数据变量名的 script
+            should_keep = False
+
+            if script_type in ['application/json', 'application/ld+json']:
+                should_keep = True
+            elif any(keyword in script_text for keyword in data_keywords):
+                should_keep = True
+
+            if not should_keep:
+                remove_targets.append(script)
+
+        remove_reversely(remove_targets)
+
+        # 处理其他标签
+        other_tags = [tag for tag in tag_type_list if tag != 'script']
+        if other_tags:
+            xpath = '|'.join([f'.//{tag}' for tag in other_tags])
+            remove_targets = root.xpath(xpath)
+            remove_reversely(remove_targets)
+    else:
+        # 没有 script 标签，正常处理
+        xpath = '|'.join([f'.//{tag}' for tag in tag_type_list])
+        remove_targets = root.xpath(xpath)
+        remove_reversely(remove_targets)
+
     return root
 
 
@@ -181,6 +245,12 @@ def remove_empty_tags(
         if leaf_element.tag in predefined_non_empty_tags:
             continue
 
+        # 特殊处理：保留包含 JSON 数据的 script 标签
+        if leaf_element.tag == 'script':
+            script_type = leaf_element.get('type', '').lower()
+            if script_type in ['application/json', 'application/ld+json']:
+                continue
+
         # 如果有文本内容，跳过
         if leaf_element.text and leaf_element.text.strip():
             continue
@@ -212,10 +282,16 @@ def clean_attributes(
     keep_attrs_set = set(keep_attrs) if keep_attrs else set()
 
     for elem in root.iter():
+        # 对于 script 标签，始终保留 type 属性（用于识别 JSON 数据）
+        if elem.tag == 'script':
+            script_keep_attrs = keep_attrs_set | {'type'}
+        else:
+            script_keep_attrs = keep_attrs_set
+
         # 获取所有属性的副本（避免迭代时修改）
         attrs_to_remove = [
             attr for attr in elem.attrib.keys()
-            if attr not in keep_attrs_set
+            if attr not in script_keep_attrs
         ]
         for attr in attrs_to_remove:
             elem.attrib.pop(attr)

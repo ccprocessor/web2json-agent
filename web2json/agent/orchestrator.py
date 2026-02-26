@@ -18,7 +18,7 @@ class ParserAgent:
     通过给定一组HTML文件，自动生成能够解析这些页面的Python代码
     """
 
-    def __init__(self, output_dir: str = "output", schema_mode: str = None, schema_template: Dict = None, enable_schema_edit: bool = None, progress_callback=None, save_to_disk: bool = True):
+    def __init__(self, output_dir: str = "output", schema_mode: str = None, schema_template: Dict = None, enable_schema_edit: bool = None, progress_callback=None, save_to_disk: bool = True, remove_null_fields: bool = True):
         """
         初始化Agent
 
@@ -29,6 +29,7 @@ class ParserAgent:
             enable_schema_edit: 是否启用Schema手动编辑模式
             progress_callback: 进度回调函数 callback(phase, step, percentage)
             save_to_disk: 批量解析时是否保存到磁盘（默认True）
+            remove_null_fields: 是否清除值为null的字段（默认True）
         """
         self.planner = AgentPlanner()
         self.schema_mode = schema_mode or settings.schema_mode
@@ -41,7 +42,8 @@ class ParserAgent:
             schema_template=self.schema_template,
             enable_schema_edit=self.enable_schema_edit,
             progress_callback=progress_callback,
-            save_to_disk=save_to_disk
+            save_to_disk=save_to_disk,
+            remove_null_fields=remove_null_fields
         )
         self.output_dir = Path(output_dir)
 

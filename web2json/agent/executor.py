@@ -20,7 +20,7 @@ from web2json.utils.schema_editor import SchemaEditor
 class AgentExecutor:
     """Agent 执行器 - 负责阶段编排"""
 
-    def __init__(self, output_dir: str = "output", schema_mode: str = "auto", schema_template: Dict = None, enable_schema_edit: bool = False, progress_callback=None, save_to_disk: bool = True):
+    def __init__(self, output_dir: str = "output", schema_mode: str = "auto", schema_template: Dict = None, enable_schema_edit: bool = False, progress_callback=None, save_to_disk: bool = True, remove_null_fields: bool = True):
         """
         初始化执行器
 
@@ -31,6 +31,7 @@ class AgentExecutor:
             enable_schema_edit: 是否启用Schema手动编辑模式
             progress_callback: 进度回调函数 callback(phase, step, percentage)
             save_to_disk: 批量解析时是否保存到磁盘（默认True）
+            remove_null_fields: 是否清除值为null的字段（默认True）
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -39,6 +40,7 @@ class AgentExecutor:
         self.enable_schema_edit = enable_schema_edit
         self.progress_callback = progress_callback
         self.save_to_disk = save_to_disk
+        self.remove_null_fields = remove_null_fields
 
         # 创建子目录
         self._setup_directories()
@@ -92,6 +94,7 @@ class AgentExecutor:
         self.parser_processor = ParserProcessor(
             result_dir=self.result_dir,
             save_to_disk=self.save_to_disk,
+            remove_null_fields=self.remove_null_fields,
         )
 
     def _init_phases(self):

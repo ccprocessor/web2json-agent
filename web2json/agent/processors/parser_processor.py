@@ -17,16 +17,18 @@ from .base_processor import BaseProcessor
 class ParserProcessor(BaseProcessor):
     """解析器处理器 - 负责批量解析 HTML 文件"""
 
-    def __init__(self, result_dir: Path, save_to_disk: bool = True):
+    def __init__(self, result_dir: Path, save_to_disk: bool = True, remove_null_fields: bool = True):
         """
         初始化解析器处理器
 
         Args:
             result_dir: 解析结果保存目录
             save_to_disk: 是否保存到磁盘（默认True，False时仅在内存中处理）
+            remove_null_fields: 是否清除值为null的字段（默认True）
         """
         self.result_dir = result_dir
         self.save_to_disk = save_to_disk
+        self.remove_null_fields = remove_null_fields
 
     def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -85,6 +87,10 @@ class ParserProcessor(BaseProcessor):
 
                         # 规范化解析结果中的Unicode字符
                         parsed_data = self._normalize_result(parsed_data)
+
+                        # 清除null值字段（如果启用）
+                        if self.remove_null_fields:
+                            parsed_data = self._remove_null_fields_recursive(parsed_data)
 
                         # 根据模式选择处理方式
                         if self.save_to_disk:
@@ -153,6 +159,33 @@ class ParserProcessor(BaseProcessor):
             results['success'] = False
             results['error'] = str(e)
             return results
+
+    def _remove_null_fields_recursive(self, data: Any) -> Any:
+        """
+        递归清除值为null、None、空字符串的字段
+
+        Args:
+            data: 解析结果（可以是dict, list或其他类型）
+
+        Returns:
+            清除null字段后的数据
+        """
+        if isinstance(data, dict):
+            # 对于字典，移除值为null/None/空字符串的键
+            return {
+                key: self._remove_null_fields_recursive(value)
+                for key, value in data.items()
+                if value is not None and value != "" and value != []
+            }
+        elif isinstance(data, list):
+            # 对于列表，递归处理每个元素，并过滤掉None
+            return [
+                self._remove_null_fields_recursive(item)
+                for item in data
+                if item is not None and item != "" and item != []
+            ]
+        else:
+            return data
 
     def _normalize_text(self, text: str) -> str:
         """
