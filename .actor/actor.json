@@ -16,22 +16,6 @@
     "ai"
   ],
   "storages": {
-    "dataset": {
-      "actorSpecification": 1,
-      "title": "Extracted Data",
-      "description": "Parsed JSON data from HTML files",
-      "views": {
-        "default": {
-          "title": "Overview",
-          "transformation": {
-            "fields": []
-          },
-          "display": {
-            "component": "table",
-            "properties": {}
-          }
-        }
-      }
-    }
+    "dataset": "default"
   }
 }
