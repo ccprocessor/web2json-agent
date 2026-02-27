@@ -21,14 +21,22 @@ from web2json.main import main as web2json_main
 
 def get_apify_input():
     """Read input from Apify Actor input"""
-    input_path = os.environ.get("APIFY_INPUT_PATH", "INPUT.json")
+    # Apify standard input locations
+    possible_paths = [
+        os.environ.get("APIFY_INPUT_PATH"),  # Custom path if set
+        "/apify_storage/key_value_stores/default/INPUT.json",  # Standard Apify location
+        "apify_storage/key_value_stores/default/INPUT.json",  # Relative path
+        "INPUT.json",  # Fallback
+    ]
 
-    if not os.path.exists(input_path):
-        logger.warning(f"Input file {input_path} not found, using default")
-        return {}
+    for input_path in possible_paths:
+        if input_path and os.path.exists(input_path):
+            logger.info(f"Reading input from: {input_path}")
+            with open(input_path, "r", encoding="utf-8") as f:
+                return json.load(f)
 
-    with open(input_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    logger.warning("No input file found, using empty default. Please provide input in Apify Console.")
+    return {}
 
 
 def save_to_dataset(data):
