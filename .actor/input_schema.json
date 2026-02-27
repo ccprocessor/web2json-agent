@@ -1,0 +1,80 @@
+{
+  "title": "Web2JSON Agent Input Schema",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "inputMode": {
+      "title": "Input Mode",
+      "type": "string",
+      "description": "Choose whether to provide HTML content directly or URLs to fetch",
+      "default": "html",
+      "enum": ["html", "url"],
+      "enumTitles": ["HTML Content", "URLs"]
+    },
+    "htmlFiles": {
+      "title": "HTML Files (Base64 encoded)",
+      "type": "array",
+      "description": "Array of base64-encoded HTML content for parsing. Required if inputMode is 'html'.",
+      "editor": "json",
+      "items": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Filename for the HTML content"
+          },
+          "content": {
+            "type": "string",
+            "description": "Base64-encoded HTML content"
+          }
+        },
+        "required": ["filename", "content"]
+      }
+    },
+    "urls": {
+      "title": "URLs to Parse",
+      "type": "array",
+      "description": "Array of URLs to fetch and parse. Required if inputMode is 'url'.",
+      "editor": "stringList",
+      "items": {
+        "type": "string"
+      },
+      "example": ["https://example.com/page1.html", "https://example.com/page2.html"]
+    },
+    "domain": {
+      "title": "Domain Name",
+      "type": "string",
+      "description": "Optional domain name for organizing output",
+      "editor": "textfield"
+    },
+    "iterationRounds": {
+      "title": "Iteration Rounds",
+      "type": "integer",
+      "description": "Number of HTML samples to use for schema learning (default: 3)",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 10
+    },
+    "clusterMode": {
+      "title": "Enable Layout Clustering",
+      "type": "boolean",
+      "description": "Automatically detect and group different page layouts",
+      "default": false
+    },
+    "schemaMode": {
+      "title": "Schema Mode",
+      "type": "string",
+      "description": "Schema generation mode",
+      "default": "auto",
+      "enum": ["auto", "predefined"],
+      "enumTitles": ["Auto (AI decides)", "Predefined (use template)"]
+    },
+    "predefinedSchema": {
+      "title": "Predefined Schema Template",
+      "type": "object",
+      "description": "Optional schema template (JSON) for predefined mode",
+      "editor": "json"
+    }
+  },
+  "required": ["inputMode"]
+}

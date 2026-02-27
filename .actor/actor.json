@@ -1,0 +1,37 @@
+{
+  "actorSpecification": 1,
+  "name": "web2json-agent",
+  "title": "Web2JSON Agent - AI-Powered Web Parser Generator",
+  "description": "Automatically generates Python parser code from HTML using AI. Extracts structured data from web pages without writing XPath/CSS selectors.",
+  "version": "1.1.5",
+  "meta": {
+    "templateId": "python-empty"
+  },
+  "input": "./.actor/input_schema.json",
+  "dockerfile": "./Dockerfile",
+  "readme": "./README.md",
+  "categories": [
+    "automation",
+    "scraping",
+    "ai"
+  ],
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "title": "Extracted Data",
+      "description": "Parsed JSON data from HTML files",
+      "views": {
+        "default": {
+          "title": "Overview",
+          "transformation": {
+            "fields": []
+          },
+          "display": {
+            "component": "table",
+            "properties": {}
+          }
+        }
+      }
+    }
+  }
+}
