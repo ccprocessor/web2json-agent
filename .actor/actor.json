@@ -7,7 +7,7 @@
   "meta": {
     "templateId": "python-empty"
   },
-  "input": "input_schema.json",
+  "input": ".actor/input_schema.json",
   "dockerfile": "./Dockerfile",
   "readme": "./README.md",
   "categories": [
