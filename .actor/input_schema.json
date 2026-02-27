@@ -20,10 +20,12 @@
         "type": "object",
         "properties": {
           "filename": {
+            "title": "Filename",
             "type": "string",
             "description": "Filename for the HTML content"
           },
           "content": {
+            "title": "Content",
             "type": "string",
             "description": "Base64-encoded HTML content"
           }
