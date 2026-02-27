@@ -9,6 +9,7 @@ import json
 import base64
 import tempfile
 import shutil
+import traceback
 from pathlib import Path
 
 # Add project root to path
@@ -155,7 +156,6 @@ def main():
             logger.info(f"Running web2json with args: {' '.join(args)}")
 
             # Import and run the main function
-            import sys
             original_argv = sys.argv
             sys.argv = ["web2json"] + args
 
@@ -203,7 +203,7 @@ def main():
             save_to_dataset({
                 "_type": "error",
                 "error": str(e),
-                "traceback": str(sys.exc_info())
+                "traceback": traceback.format_exc()
             })
             sys.exit(1)
 
