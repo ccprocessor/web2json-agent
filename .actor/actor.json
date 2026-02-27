@@ -9,13 +9,5 @@
   },
   "input": "./input_schema.json",
   "dockerfile": "./Dockerfile",
-  "readme": "./README.md",
-  "categories": [
-    "automation",
-    "scraping",
-    "ai"
-  ],
-  "storages": {
-    "dataset": "default"
-  }
+  "readme": "./README.md"
 }
