@@ -225,74 +225,86 @@ else:
 
 ### 混合布局处理完整示例
 
-当你的 HTML 包含多种页面布局时，使用以下流程：
+当你的 HTML 包含多种页面布局时，使用以下流程（同demo.py）：
 
 **方式一：Python API（推荐）**
 
 ```python
-import os
-import shutil
-from pathlib import Path
 from web2json import Web2JsonConfig, classify_html_dir, extract_data
+import os
 
-# 步骤1: 自动识别不同布局
-print("步骤1: 分析页面布局...")
-config = Web2JsonConfig(
+# Step 1: Classify HTML files by layout
+classify_config = Web2JsonConfig(
     name="classify_demo",
-    html_path="html_samples/"
+    html_path="input_html/mixed_input/",
+    # save=['report', 'files'],  # Save cluster report and copy files to subdirectories
+    # output_path="./cluster_analysis",  # Custom output directory
 )
-cluster_result = classify_html_dir(config)
 
-print(f"✅ 识别出 {cluster_result.cluster_count} 种页面布局")
+classify_result = classify_html_dir(classify_config)
 
-# 如果只有一种布局，直接跳过聚类流程
-if cluster_result.cluster_count == 1:
-    print("所有页面属于相同布局，直接处理...")
-    config = Web2JsonConfig(name="all_pages", html_path="html_samples/")
-    result = extract_data(config)
-    print(f"✅ 完成！解析了 {len(result.parsed_data)} 个文件")
-else:
-    # 步骤2: 为每种布局生成专属 Parser
-    # 创建临时目录用于存放各簇文件
-    temp_base_dir = Path("temp_clusters")
-    temp_base_dir.mkdir(exist_ok=True)
+print(f"\n{'='*60}")
+print(f"布局分类完成")
+print(f"{'='*60}")
+print(f"识别出的布局类型: {classify_result.cluster_count}")
+print(f"噪声文件: {len(classify_result.noise_files)}")
 
+for cluster_name, files in classify_result.clusters.items():
+    print(f"\n{cluster_name}: {len(files)} 个文件")
+    for file in files[:3]:
+        print(f"  - {os.path.basename(file)}")
+
+# Step 2: Extract data for each cluster
+print(f"\n{'='*60}")
+print(f"开始对每个布局类型进行数据提取")
+print(f"{'='*60}")
+
+extraction_results = {}
+
+for cluster_name, files in classify_result.clusters.items():
+    print(f"\n处理 {cluster_name} ({len(files)} 个文件)...")
+
+    # Get cluster directory path
+    cluster_dir = os.path.join(
+        classify_config.output_path or "output",
+        classify_config.name,
+        "clusters",
+        cluster_name
+    )
+
+    # Create extraction config for this cluster
+    extract_config = Web2JsonConfig(
+        name=f"{classify_config.name}_{cluster_name}",
+        html_path=cluster_dir,
+        save=['schema', 'code', 'data'],  # Save schema, code, and extracted data
+        iteration_rounds=min(3, len(files)),  # Use min(3, file_count) samples for learning
+    )
+
+    # Extract data
     try:
-        for cluster_name, html_files in cluster_result.clusters.items():
-            print(f"\n处理布局: {cluster_name} ({len(html_files)} 个文件)")
+        result = extract_data(extract_config)
+        extraction_results[cluster_name] = result
+        print(f"✓ {cluster_name} 数据提取完成")
+        print(f"  生成的 schema 字段数: {len(result.final_schema) if result.final_schema else 0}")
+        print(f"  解析的文件数: {len(result.parsed_data)}")
+    except Exception as e:
+        print(f"✗ {cluster_name} 数据提取失败: {e}")
+        extraction_results[cluster_name] = None
 
-            # 创建该簇的临时目录
-            cluster_temp_dir = temp_base_dir / cluster_name
-            cluster_temp_dir.mkdir(exist_ok=True)
+# Step 3: Summary
+print(f"\n{'='*60}")
+print(f"全部完成")
+print(f"{'='*60}")
+print(f"总布局类型: {classify_result.cluster_count}")
+print(f"成功提取数据的类型: {sum(1 for r in extraction_results.values() if r is not None)}")
 
-            # 将簇中的文件复制到临时目录（仅复制前3个作为样本）
-            sample_count = min(3, len(html_files))
-            for html_file in html_files[:sample_count]:
-                shutil.copy2(html_file, cluster_temp_dir / Path(html_file).name)
-
-            print(f"  使用 {sample_count} 个样本文件学习 Schema")
-
-            # 为该布局生成 Parser（使用簇的临时目录）
-            config = Web2JsonConfig(
-                name=f"parser_{cluster_name}",
-                html_path=str(cluster_temp_dir),
-                iteration_rounds=sample_count
-            )
-            result = extract_data(config)
-
-            print(f"✅ {cluster_name} Parser生成完成")
-            print(f"  - 解析了 {len(result.parsed_data)} 个文件")
-            print(f"  - Schema包含 {len(result.final_schema)} 个字段")
-
-        # 处理无法归类的文件（噪音）
-        if cluster_result.noise_files:
-            print(f"\n⚠️ 发现 {len(cluster_result.noise_files)} 个无法归类的文件")
-
-    finally:
-        # 清理临时目录
-        if temp_base_dir.exists():
-            shutil.rmtree(temp_base_dir)
-            print(f"\n✓ 已清理临时目录")
+for cluster_name, result in extraction_results.items():
+    if result:
+        output_dir = os.path.join("output", f"{classify_config.name}_{cluster_name}")
+        print(f"\n{cluster_name}:")
+        print(f"  结果目录: {output_dir}")
+        print(f"  解析文件数: {len(result.parsed_data)}")
+        print(f"  Schema 字段: {list(result.final_schema.keys()) if result.final_schema else []}")
 ```
 
 **方式二：命令行工具**

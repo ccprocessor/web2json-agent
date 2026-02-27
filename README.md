@@ -97,6 +97,8 @@ Web2JSON provides five simple APIs. Perfect for databases, APIs, and real-time p
 
 Extract structured data from HTML in one step (schema + parser + data).
 
+> **⚠️ Important**: The `extract_data` API assumes all HTML files in the input directory have the **same layout type**. If your HTML files have **different layouts** (e.g., list pages vs detail pages), use [`classify_html_dir`](#api-5-classify_html_dir---classify-html-by-layout) first to group them by layout similarity. See [`demo.py`](./demo.py) for a complete example.
+
 **Auto Mode** - Let AI automatically discover and extract fields:
 
 ```python
