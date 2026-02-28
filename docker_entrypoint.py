@@ -21,21 +21,64 @@ from web2json.main import main as web2json_main
 
 def get_apify_input():
     """Read input from Apify Actor input"""
-    # Apify standard input locations
+    # Log environment for debugging
+    logger.info("=" * 60)
+    logger.info("Apify Environment Diagnostics")
+    logger.info("=" * 60)
+    logger.info(f"APIFY_INPUT_PATH: {os.environ.get('APIFY_INPUT_PATH', 'NOT SET')}")
+    logger.info(f"APIFY_DEFAULT_KEY_VALUE_STORE_ID: {os.environ.get('APIFY_DEFAULT_KEY_VALUE_STORE_ID', 'NOT SET')}")
+    logger.info(f"APIFY_IS_AT_HOME: {os.environ.get('APIFY_IS_AT_HOME', 'NOT SET')}")
+    logger.info(f"Current working directory: {os.getcwd()}")
+
+    # List files in current directory
+    logger.info(f"Files in current directory: {os.listdir('.')}")
+
+    # Check if apify_storage exists
+    if os.path.exists("apify_storage"):
+        logger.info(f"apify_storage exists: {os.listdir('apify_storage')}")
+        if os.path.exists("apify_storage/key_value_stores"):
+            logger.info(f"key_value_stores content: {os.listdir('apify_storage/key_value_stores')}")
+
+    # Apify standard input locations (in priority order)
     possible_paths = [
         os.environ.get("APIFY_INPUT_PATH"),  # Custom path if set
         "/apify_storage/key_value_stores/default/INPUT.json",  # Standard Apify location
         "apify_storage/key_value_stores/default/INPUT.json",  # Relative path
-        "INPUT.json",  # Fallback
+        "INPUT.json",  # Fallback in current directory
     ]
 
-    for input_path in possible_paths:
-        if input_path and os.path.exists(input_path):
-            logger.info(f"Reading input from: {input_path}")
-            with open(input_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+    # Try to find the default store ID dynamically
+    default_store_id = os.environ.get("APIFY_DEFAULT_KEY_VALUE_STORE_ID")
+    if default_store_id:
+        possible_paths.insert(1, f"/apify_storage/key_value_stores/{default_store_id}/INPUT.json")
+        possible_paths.insert(2, f"apify_storage/key_value_stores/{default_store_id}/INPUT.json")
 
-    logger.warning("No input file found, using empty default. Please provide input in Apify Console.")
+    logger.info(f"Searching for input in {len(possible_paths)} locations...")
+
+    for i, input_path in enumerate(possible_paths, 1):
+        if input_path:
+            logger.info(f"  [{i}] Trying: {input_path}")
+            if os.path.exists(input_path):
+                logger.info(f"  ✓ Found input file at: {input_path}")
+                try:
+                    with open(input_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        logger.info(f"  Input file size: {len(content)} bytes")
+                        actor_input = json.loads(content)
+                        logger.info(f"  Successfully parsed JSON with {len(actor_input)} keys")
+                        return actor_input
+                except Exception as e:
+                    logger.error(f"  ✗ Failed to read/parse {input_path}: {e}")
+            else:
+                logger.debug(f"  ✗ Not found: {input_path}")
+
+    logger.warning("=" * 60)
+    logger.warning("⚠ No input file found in any location")
+    logger.warning("This usually means:")
+    logger.warning("1. Input was not provided in Apify Console")
+    logger.warning("2. Or Actor is running in local/test mode")
+    logger.warning("=" * 60)
+    logger.warning("Using empty default input")
     return {}
 
 
@@ -248,10 +291,12 @@ def main():
             logger.info("Web2JSON Agent completed successfully")
 
         except Exception as e:
-            logger.error(f"Error during execution: {e}", exc_info=True)
+            error_msg = str(e)
+            logger.error(f"Error during execution: {error_msg}")
+            logger.debug("Full traceback:", exc_info=True)
             save_to_dataset({
                 "_type": "error",
-                "error": str(e),
+                "error": error_msg,
                 "traceback": traceback.format_exc()
             })
             sys.exit(1)
