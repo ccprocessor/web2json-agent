@@ -5,11 +5,19 @@
   "properties": {
     "urls": {
       "title": "URLs to Parse",
-      "type": "string",
-      "description": "Enter URLs to parse (one per line)",
-      "editor": "textarea",
-      "example": "https://quotes.toscrape.com/page/1/\nhttps://quotes.toscrape.com/page/2/\nhttps://quotes.toscrape.com/page/3/",
-      "prefill": "https://quotes.toscrape.com/page/1/\nhttps://quotes.toscrape.com/page/2/"
+      "type": "array",
+      "description": "Click '+ Add' button to add URLs one by one",
+      "editor": "json",
+      "items": {
+        "type": "string",
+        "title": "URL",
+        "editor": "textfield"
+      },
+      "minItems": 1,
+      "prefill": [
+        "https://quotes.toscrape.com/page/1/",
+        "https://quotes.toscrape.com/page/2/"
+      ]
     },
     "domain": {
       "title": "Output Name (Optional)",
@@ -47,5 +55,5 @@
       "editor": "hidden"
     }
   },
-  "required": []
+  "required": ["urls"]
 }
