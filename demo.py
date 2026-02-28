@@ -1,5 +1,7 @@
 from web2json import Web2JsonConfig, classify_html_dir, extract_data
 import os
+import shutil
+from pathlib import Path
 
 # Step 1: Classify HTML files by layout
 classify_config = Web2JsonConfig(
@@ -32,20 +34,37 @@ extraction_results = {}
 for cluster_name, files in classify_result.clusters.items():
     print(f"\n处理 {cluster_name} ({len(files)} 个文件)...")
 
-    # Get cluster directory path
-    cluster_dir = os.path.join(
-        classify_config.output_path or "output",
-        classify_config.name,
-        "clusters",
-        cluster_name
-    )
+    # Determine HTML path: use cluster directory if files were saved, otherwise create temp directory
+    if classify_config.should_save_item('files'):
+        # If files were saved, use the cluster directory
+        html_path = os.path.join(
+            classify_config.output_path or "output",
+            classify_config.name,
+            "clusters",
+            cluster_name
+        )
+    else:
+        # If files were not saved, create a temporary directory and copy files
+        temp_cluster_dir = Path("output") / classify_config.name / "temp_clusters" / cluster_name
+        temp_cluster_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy cluster files to temp directory
+        for src_file in files:
+            src = Path(src_file)
+            dst = temp_cluster_dir / src.name
+            shutil.copy2(src, dst)
+
+        html_path = str(temp_cluster_dir)
 
     # Create extraction config for this cluster
     extract_config = Web2JsonConfig(
         name=f"{classify_config.name}_{cluster_name}",
-        html_path=cluster_dir,
+        html_path=html_path,
         save=['schema', 'code', 'data'],  # Save schema, code, and extracted data
-        iteration_rounds=min(3, len(files)),  # Use min(3, file_count) samples for learning
+        schema={
+            "title": "string",
+            "date": "string",
+        },
     )
 
     # Extract data
@@ -58,6 +77,13 @@ for cluster_name, files in classify_result.clusters.items():
     except Exception as e:
         print(f"✗ {cluster_name} 数据提取失败: {e}")
         extraction_results[cluster_name] = None
+
+# Clean up temp directories if they were created
+if not classify_config.should_save_item('files'):
+    temp_clusters_dir = Path("output") / classify_config.name / "temp_clusters"
+    if temp_clusters_dir.exists():
+        shutil.rmtree(temp_clusters_dir)
+        print(f"\n✓ 已清理临时目录: {temp_clusters_dir}")
 
 # Step 3: Summary
 print(f"\n{'='*60}")
