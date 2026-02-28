@@ -7,7 +7,6 @@
       "title": "URLs to Parse",
       "type": "array",
       "description": "Click '+ Add' button to add URLs one by one",
-      "editor": "json",
       "items": {
         "type": "string",
         "title": "URL",
