@@ -18,9 +18,42 @@ sys.path.insert(0, str(Path(__file__).parent))
 from loguru import logger
 from web2json.main import main as web2json_main
 
+# Try to import Apify SDK (available in Apify platform)
+try:
+    from apify import Actor
+    APIFY_SDK_AVAILABLE = True
+except ImportError:
+    APIFY_SDK_AVAILABLE = False
+    logger.debug("Apify SDK not available, will use file-based input reading")
+
+
+async def get_apify_input_async():
+    """Read input using Apify SDK (async version for platform)"""
+    try:
+        async with Actor:
+            actor_input = await Actor.get_input() or {}
+            logger.info(f"✓ Successfully read input via Apify SDK")
+            logger.info(f"  Input keys: {list(actor_input.keys())}")
+            return actor_input
+    except Exception as e:
+        logger.error(f"Failed to read input via Apify SDK: {e}")
+        return {}
+
 
 def get_apify_input():
-    """Read input from Apify Actor input"""
+    """Read input from Apify Actor - supports both SDK and file-based methods"""
+    # Method 1: Try Apify SDK first (works on Apify platform)
+    if APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1':
+        logger.info("Running on Apify platform, using Apify SDK...")
+        try:
+            import asyncio
+            actor_input = asyncio.run(get_apify_input_async())
+            if actor_input:
+                return actor_input
+        except Exception as e:
+            logger.warning(f"Apify SDK method failed: {e}, falling back to file-based reading")
+
+    # Method 2: File-based reading (works locally and as fallback)
     # Log environment for debugging
     logger.info("=" * 60)
     logger.info("Apify Environment Diagnostics")
@@ -82,8 +115,29 @@ def get_apify_input():
     return {}
 
 
+async def save_to_dataset_async(data):
+    """Save data using Apify SDK (async version)"""
+    try:
+        async with Actor:
+            await Actor.push_data(data)
+            logger.info(f"✓ Saved data via Apify SDK")
+    except Exception as e:
+        logger.error(f"Failed to save via Apify SDK: {e}")
+        raise
+
+
 def save_to_dataset(data):
-    """Save data to Apify dataset"""
+    """Save data to Apify dataset - supports both SDK and file-based methods"""
+    # Method 1: Try Apify SDK first (works on Apify platform)
+    if APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1':
+        try:
+            import asyncio
+            asyncio.run(save_to_dataset_async(data))
+            return  # Success, exit early
+        except Exception as e:
+            logger.warning(f"Apify SDK save failed: {e}, falling back to file-based saving")
+
+    # Method 2: File-based saving (works locally and as fallback)
     dataset_dir = os.environ.get("APIFY_DEFAULT_DATASET_ID", "default")
     dataset_path = Path(f"apify_storage/datasets/{dataset_dir}")
     dataset_path.mkdir(parents=True, exist_ok=True)

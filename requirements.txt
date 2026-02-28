@@ -19,3 +19,6 @@ lxml==5.3.0
 # Tool library
 requests==2.32.3
 
+# Apify SDK (for Actor platform integration)
+apify==1.7.2
+
