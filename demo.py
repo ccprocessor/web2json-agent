@@ -61,10 +61,11 @@ for cluster_name, files in classify_result.clusters.items():
         name=f"{classify_config.name}_{cluster_name}",
         html_path=html_path,
         save=['schema', 'code', 'data'],  # Save schema, code, and extracted data
-        schema={
-            "title": "string",
-            "date": "string",
-        },
+        # schema={
+        #     "title": "string",
+        #     "date": "string",
+        # },
+        output_path="./testoutput",  # Custom output directory
     )
 
     # Extract data
