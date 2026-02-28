@@ -30,11 +30,12 @@ except ImportError:
 async def get_apify_input_async():
     """Read input using Apify SDK (async version for platform)"""
     try:
-        async with Actor:
-            actor_input = await Actor.get_input() or {}
-            logger.info(f"✓ Successfully read input via Apify SDK")
-            logger.info(f"  Input keys: {list(actor_input.keys())}")
-            return actor_input
+        # Initialize Actor but don't use context manager (it calls exit())
+        await Actor.init()
+        actor_input = await Actor.get_input() or {}
+        logger.info(f"✓ Successfully read input via Apify SDK")
+        logger.info(f"  Input keys: {list(actor_input.keys())}")
+        return actor_input
     except Exception as e:
         logger.error(f"Failed to read input via Apify SDK: {e}")
         return {}
@@ -118,9 +119,10 @@ def get_apify_input():
 async def save_to_dataset_async(data):
     """Save data using Apify SDK (async version)"""
     try:
-        async with Actor:
-            await Actor.push_data(data)
-            logger.info(f"✓ Saved data via Apify SDK")
+        # Actor should already be initialized from get_input
+        # Just push data without using context manager
+        await Actor.push_data(data)
+        logger.info(f"✓ Saved data via Apify SDK")
     except Exception as e:
         logger.error(f"Failed to save via Apify SDK: {e}")
         raise
@@ -344,6 +346,14 @@ def main():
 
             logger.info("Web2JSON Agent completed successfully")
 
+            # Properly exit Apify Actor if running on platform
+            if APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1':
+                try:
+                    import asyncio
+                    asyncio.run(Actor.exit())
+                except Exception as e:
+                    logger.warning(f"Failed to exit Actor cleanly: {e}")
+
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error during execution: {error_msg}")
@@ -353,6 +363,15 @@ def main():
                 "error": error_msg,
                 "traceback": traceback.format_exc()
             })
+
+            # Exit Actor with error if on platform
+            if APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1':
+                try:
+                    import asyncio
+                    asyncio.run(Actor.exit(exit_code=1, status_message=error_msg))
+                except Exception:
+                    pass
+
             sys.exit(1)
 
 
