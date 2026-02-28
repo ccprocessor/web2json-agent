@@ -248,14 +248,27 @@ def main():
             elif input_mode == "url":
                 # Fetch URLs and save HTML
                 urls = actor_input.get("urls", [])
+
+                # Ensure urls is a list
+                if not isinstance(urls, list):
+                    urls = [urls] if urls else []
+
                 if not urls:
-                    raise ValueError("No URLs provided in input")
+                    raise ValueError("No URLs provided in input. Please click '+ Add' to add at least one URL.")
+
+                logger.info(f"Received {len(urls)} URLs to fetch")
 
                 import requests
                 from bs4 import BeautifulSoup
 
                 for idx, url in enumerate(urls):
+                    if not url or not url.strip():
+                        logger.warning(f"Skipping empty URL at position {idx+1}")
+                        continue
+
+                    url = url.strip()
                     try:
+                        logger.info(f"[{idx+1}/{len(urls)}] Fetching: {url}")
                         response = requests.get(url, timeout=30)
                         response.raise_for_status()
                         html_content = response.text
