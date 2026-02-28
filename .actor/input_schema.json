@@ -1,56 +1,37 @@
 {
-  "title": "Web2JSON Agent - URL Parser",
+  "title": "Web2JSON Agent Input",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
-    "urls": {
-      "title": "URLs to Parse",
-      "type": "array",
-      "description": "Add URLs to parse (click + to add more)",
-      "items": {
-        "type": "string",
-        "editor": "textfield"
-      },
-      "minItems": 1,
-      "prefill": [
-        "https://quotes.toscrape.com/page/1/",
-        "https://quotes.toscrape.com/page/2/"
-      ]
-    },
-    "domain": {
-      "title": "Output Name (Optional)",
-      "type": "string",
-      "description": "Name for the output folder",
-      "editor": "textfield",
-      "default": "parsed_data"
-    },
     "inputMode": {
       "title": "Input Mode",
       "type": "string",
       "description": "Input mode",
       "default": "url",
-      "editor": "hidden"
+      "enum": ["url"],
+      "editor": "select"
+    },
+    "urls": {
+      "title": "URLs",
+      "type": "array",
+      "description": "List of URLs to parse",
+      "editor": "json"
+    },
+    "domain": {
+      "title": "Domain",
+      "type": "string",
+      "description": "Domain name",
+      "editor": "textfield",
+      "default": "parsed_data"
     },
     "iterationRounds": {
       "title": "Iteration Rounds",
       "type": "integer",
-      "description": "Number of samples for learning",
+      "description": "Number of iteration rounds",
+      "editor": "number",
       "default": 3,
-      "editor": "hidden"
-    },
-    "clusterMode": {
-      "title": "Cluster Mode",
-      "type": "boolean",
-      "description": "Enable layout clustering",
-      "default": false,
-      "editor": "hidden"
-    },
-    "schemaMode": {
-      "title": "Schema Mode",
-      "type": "string",
-      "description": "Schema generation mode",
-      "default": "auto",
-      "editor": "hidden"
+      "minimum": 1,
+      "maximum": 10
     }
   },
   "required": ["urls"]
