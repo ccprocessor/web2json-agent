@@ -82,28 +82,69 @@ def main():
         try:
             # Handle different input modes
             if input_mode == "html":
-                # Decode base64 HTML files
+                # Priority 1: htmlContents (direct text input - easiest)
+                html_contents = actor_input.get("htmlContents", [])
+
+                # Priority 2: htmlFiles (base64 or plain text - advanced)
                 html_files = actor_input.get("htmlFiles", [])
-                if not html_files:
-                    raise ValueError("No HTML files provided in input")
 
-                for idx, file_data in enumerate(html_files):
-                    filename = file_data.get("filename", f"page_{idx+1}.html")
-                    content_b64 = file_data.get("content", "")
+                if not html_contents and not html_files:
+                    raise ValueError(
+                        "No HTML content provided. Please provide either:\n"
+                        "1. 'htmlContents' (recommended): array of {name, html}\n"
+                        "2. 'htmlFiles' (advanced): array of {filename, content}\n"
+                        "3. Or switch inputMode to 'url' and provide URLs"
+                    )
 
-                    # Decode base64 content
-                    try:
-                        html_content = base64.b64decode(content_b64).decode("utf-8")
-                    except Exception as e:
-                        logger.warning(f"Failed to decode {filename}, trying as plain text: {e}")
-                        html_content = content_b64
+                # Process htmlContents (direct text input)
+                if html_contents:
+                    logger.info(f"Processing {len(html_contents)} HTML content items (direct input)")
+                    for idx, content_item in enumerate(html_contents):
+                        page_name = content_item.get("name", f"page_{idx+1}")
+                        html_content = content_item.get("html", "")
 
-                    # Save to input directory
-                    input_file = input_dir / filename
-                    with open(input_file, "w", encoding="utf-8") as f:
-                        f.write(html_content)
+                        if not html_content:
+                            logger.warning(f"Skipping empty HTML content for {page_name}")
+                            continue
 
-                    logger.info(f"Saved HTML file: {filename}")
+                        # Ensure .html extension
+                        filename = page_name if page_name.endswith(".html") else f"{page_name}.html"
+
+                        # Save to input directory
+                        input_file = input_dir / filename
+                        with open(input_file, "w", encoding="utf-8") as f:
+                            f.write(html_content)
+
+                        logger.info(f"Saved HTML content: {filename} ({len(html_content)} chars)")
+
+                # Process htmlFiles (base64 or plain text)
+                if html_files:
+                    logger.info(f"Processing {len(html_files)} HTML files (base64/text)")
+                    for idx, file_data in enumerate(html_files):
+                        filename = file_data.get("filename", f"page_{idx+1}.html")
+                        content = file_data.get("content", "")
+
+                        if not content:
+                            logger.warning(f"Skipping empty content for {filename}")
+                            continue
+
+                        # Try to decode as base64 first, fall back to plain text
+                        html_content = content
+                        try:
+                            # Check if it looks like base64 (no < or > characters)
+                            if "<" not in content[:100] and ">" not in content[:100]:
+                                decoded = base64.b64decode(content).decode("utf-8")
+                                html_content = decoded
+                                logger.info(f"Decoded base64 content for {filename}")
+                        except Exception as e:
+                            logger.debug(f"Using content as plain text for {filename}: {e}")
+
+                        # Save to input directory
+                        input_file = input_dir / filename
+                        with open(input_file, "w", encoding="utf-8") as f:
+                            f.write(html_content)
+
+                        logger.info(f"Saved HTML file: {filename} ({len(html_content)} chars)")
 
             elif input_mode == "url":
                 # Fetch URLs and save HTML
