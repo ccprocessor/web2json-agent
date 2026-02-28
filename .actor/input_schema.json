@@ -6,23 +6,15 @@
     "urls": {
       "title": "URLs to Parse",
       "type": "array",
-      "description": "List of URLs to parse",
-      "editor": "requestListSources",
+      "description": "Add URLs to parse (click + to add more)",
       "items": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "description": "Enter URL",
-            "type": "string",
-            "title": "URL",
-            "editor": "textfield"
-          }
-        }
+        "type": "string",
+        "editor": "textfield"
       },
       "minItems": 1,
       "prefill": [
-        { "url": "https://quotes.toscrape.com/page/1/" },
-        { "url": "https://quotes.toscrape.com/page/2/" }
+        "https://quotes.toscrape.com/page/1/",
+        "https://quotes.toscrape.com/page/2/"
       ]
     },
     "domain": {
@@ -35,28 +27,28 @@
     "inputMode": {
       "title": "Input Mode",
       "type": "string",
-      "description": "Input mode (hidden, always url)",
+      "description": "Input mode",
       "default": "url",
       "editor": "hidden"
     },
     "iterationRounds": {
       "title": "Iteration Rounds",
       "type": "integer",
-      "description": "Number of samples for learning (hidden)",
+      "description": "Number of samples for learning",
       "default": 3,
       "editor": "hidden"
     },
     "clusterMode": {
       "title": "Cluster Mode",
       "type": "boolean",
-      "description": "Enable layout clustering (hidden)",
+      "description": "Enable layout clustering",
       "default": false,
       "editor": "hidden"
     },
     "schemaMode": {
       "title": "Schema Mode",
       "type": "string",
-      "description": "Schema generation mode (hidden)",
+      "description": "Schema generation mode",
       "default": "auto",
       "editor": "hidden"
     }
