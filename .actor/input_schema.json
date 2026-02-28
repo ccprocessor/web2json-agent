@@ -21,24 +21,28 @@
     "inputMode": {
       "title": "Input Mode",
       "type": "string",
+      "description": "Input mode (hidden, always url)",
       "default": "url",
       "editor": "hidden"
     },
     "iterationRounds": {
       "title": "Iteration Rounds",
       "type": "integer",
+      "description": "Number of samples for learning (hidden)",
       "default": 3,
       "editor": "hidden"
     },
     "clusterMode": {
       "title": "Cluster Mode",
       "type": "boolean",
+      "description": "Enable layout clustering (hidden)",
       "default": false,
       "editor": "hidden"
     },
     "schemaMode": {
       "title": "Schema Mode",
       "type": "string",
+      "description": "Schema generation mode (hidden)",
       "default": "auto",
       "editor": "hidden"
     }
