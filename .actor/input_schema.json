@@ -1,123 +1,43 @@
 {
-  "title": "Web2JSON Agent Input Schema",
+  "title": "Web2JSON Agent - Simple Configuration",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
-    "inputMode": {
-      "title": "Input Mode",
-      "type": "string",
-      "description": "Choose whether to provide URLs to fetch or HTML content directly",
-      "default": "url",
-      "enum": ["url", "html"],
-      "enumTitles": ["URLs (Recommended)", "HTML Content"],
-      "editor": "select"
-    },
     "urls": {
       "title": "URLs to Parse",
-      "type": "array",
-      "description": "Click 'Add item' to add URLs one by one. Each URL will be fetched and parsed automatically.",
-      "editor": "stringList",
-      "items": {
-        "type": "string",
-        "pattern": "^https?://.*",
-        "editor": "textfield"
-      },
-      "placeholderValue": "https://example.com/page1",
-      "example": ["https://quotes.toscrape.com/page/1/", "https://quotes.toscrape.com/page/2/"]
-    },
-    "htmlContents": {
-      "title": "HTML Content (Direct Input)",
-      "type": "array",
-      "description": "Directly paste HTML content here. Each item should have a name and HTML. Use this for easy input without Base64 encoding.",
-      "editor": "json",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "title": "Page Name",
-            "type": "string",
-            "description": "Name for this HTML page (e.g., 'page1', 'product_detail')"
-          },
-          "html": {
-            "title": "HTML Content",
-            "type": "string",
-            "description": "Raw HTML content (will be saved as .html file)",
-            "editor": "textarea"
-          }
-        },
-        "required": ["name", "html"]
-      },
-      "example": [
-        {
-          "name": "page1",
-          "html": "<html><body><h1>Example</h1></body></html>"
-        }
-      ]
-    },
-    "htmlFiles": {
-      "title": "HTML Files (Base64 encoded) - Advanced",
-      "type": "array",
-      "description": "Advanced: Array of base64-encoded HTML content. Use 'htmlContents' above for easier input.",
-      "editor": "json",
-      "items": {
-        "type": "object",
-        "properties": {
-          "filename": {
-            "title": "Filename",
-            "type": "string",
-            "description": "Filename for the HTML content"
-          },
-          "content": {
-            "title": "Content",
-            "type": "string",
-            "description": "Base64-encoded OR plain HTML content"
-          }
-        },
-        "required": ["filename", "content"]
-      }
+      "type": "string",
+      "description": "Enter URLs to parse (one per line)",
+      "editor": "textarea",
+      "example": "https://quotes.toscrape.com/page/1/\nhttps://quotes.toscrape.com/page/2/\nhttps://quotes.toscrape.com/page/3/",
+      "prefill": "https://quotes.toscrape.com/page/1/\nhttps://quotes.toscrape.com/page/2/"
     },
     "domain": {
-      "title": "Domain Name",
+      "title": "Output Name (Optional)",
       "type": "string",
-      "description": "Optional domain name for organizing output (e.g., 'myblog', 'ecommerce')",
+      "description": "Name for the output folder",
       "editor": "textfield",
       "default": "parsed_data"
     },
+    "inputMode": {
+      "type": "string",
+      "default": "url",
+      "editor": "hidden"
+    },
     "iterationRounds": {
-      "title": "Learning Samples",
       "type": "integer",
-      "description": "Number of HTML pages to analyze for learning extraction patterns (1-10, recommended: 3)",
       "default": 3,
-      "minimum": 1,
-      "maximum": 10,
-      "editor": "number"
+      "editor": "hidden"
     },
     "clusterMode": {
-      "title": "Auto-detect Multiple Layouts",
       "type": "boolean",
-      "description": "Enable if your pages have different layouts (e.g., list pages + detail pages). The system will automatically group similar layouts.",
       "default": false,
-      "editor": "checkbox"
+      "editor": "hidden"
     },
     "schemaMode": {
-      "title": "Schema Mode",
       "type": "string",
-      "description": "Auto: Let AI automatically discover data structure. Predefined: Use your custom schema template.",
       "default": "auto",
-      "enum": ["auto", "predefined"],
-      "enumTitles": ["Auto (AI Discovers)", "Predefined (Use Template)"],
-      "editor": "select"
-    },
-    "predefinedSchema": {
-      "title": "Custom Schema Template (JSON)",
-      "type": "object",
-      "description": "Only used when Schema Mode is 'Predefined'. Define the exact JSON structure you want to extract.",
-      "editor": "json",
-      "prefill": {
-        "title": {"type": "string", "description": "Article title"},
-        "author": {"type": "string", "description": "Author name"}
-      }
+      "editor": "hidden"
     }
   },
-  "required": ["inputMode"]
+  "required": []
 }
