@@ -346,13 +346,8 @@ def main():
 
             logger.info("Web2JSON Agent completed successfully")
 
-            # Properly exit Apify Actor if running on platform
-            if APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1':
-                try:
-                    import asyncio
-                    asyncio.run(Actor.exit())
-                except Exception as e:
-                    logger.warning(f"Failed to exit Actor cleanly: {e}")
+            # Note: We don't call Actor.exit() explicitly to avoid event loop conflicts
+            # The Apify platform will handle Actor cleanup automatically when the process exits
 
         except Exception as e:
             error_msg = str(e)
@@ -364,14 +359,7 @@ def main():
                 "traceback": traceback.format_exc()
             })
 
-            # Exit Actor with error if on platform
-            if APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1':
-                try:
-                    import asyncio
-                    asyncio.run(Actor.exit(exit_code=1, status_message=error_msg))
-                except Exception:
-                    pass
-
+            # Exit with error code (Apify platform will handle Actor cleanup)
             sys.exit(1)
 
 
