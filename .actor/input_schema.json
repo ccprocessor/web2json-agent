@@ -6,10 +6,24 @@
     "inputMode": {
       "title": "Input Mode",
       "type": "string",
-      "description": "Choose whether to provide HTML content directly or URLs to fetch",
-      "default": "html",
-      "enum": ["html", "url"],
-      "enumTitles": ["HTML Content", "URLs"]
+      "description": "Choose whether to provide URLs to fetch or HTML content directly",
+      "default": "url",
+      "enum": ["url", "html"],
+      "enumTitles": ["URLs (Recommended)", "HTML Content"],
+      "editor": "select"
+    },
+    "urls": {
+      "title": "URLs to Parse",
+      "type": "array",
+      "description": "Click 'Add item' to add URLs one by one. Each URL will be fetched and parsed automatically.",
+      "editor": "stringList",
+      "items": {
+        "type": "string",
+        "pattern": "^https?://.*",
+        "editor": "textfield"
+      },
+      "placeholderValue": "https://example.com/page1",
+      "example": ["https://quotes.toscrape.com/page/1/", "https://quotes.toscrape.com/page/2/"]
     },
     "htmlContents": {
       "title": "HTML Content (Direct Input)",
@@ -62,49 +76,47 @@
         "required": ["filename", "content"]
       }
     },
-    "urls": {
-      "title": "URLs to Parse",
-      "type": "array",
-      "description": "Array of URLs to fetch and parse. Required if inputMode is 'url'.",
-      "editor": "stringList",
-      "items": {
-        "type": "string"
-      },
-      "example": ["https://example.com/page1.html", "https://example.com/page2.html"]
-    },
     "domain": {
       "title": "Domain Name",
       "type": "string",
-      "description": "Optional domain name for organizing output",
-      "editor": "textfield"
+      "description": "Optional domain name for organizing output (e.g., 'myblog', 'ecommerce')",
+      "editor": "textfield",
+      "default": "parsed_data"
     },
     "iterationRounds": {
-      "title": "Iteration Rounds",
+      "title": "Learning Samples",
       "type": "integer",
-      "description": "Number of HTML samples to use for schema learning (default: 3)",
+      "description": "Number of HTML pages to analyze for learning extraction patterns (1-10, recommended: 3)",
       "default": 3,
       "minimum": 1,
-      "maximum": 10
+      "maximum": 10,
+      "editor": "number"
     },
     "clusterMode": {
-      "title": "Enable Layout Clustering",
+      "title": "Auto-detect Multiple Layouts",
       "type": "boolean",
-      "description": "Automatically detect and group different page layouts",
-      "default": false
+      "description": "Enable if your pages have different layouts (e.g., list pages + detail pages). The system will automatically group similar layouts.",
+      "default": false,
+      "editor": "checkbox"
     },
     "schemaMode": {
       "title": "Schema Mode",
       "type": "string",
-      "description": "Schema generation mode",
+      "description": "Auto: Let AI automatically discover data structure. Predefined: Use your custom schema template.",
       "default": "auto",
       "enum": ["auto", "predefined"],
-      "enumTitles": ["Auto (AI decides)", "Predefined (use template)"]
+      "enumTitles": ["Auto (AI Discovers)", "Predefined (Use Template)"],
+      "editor": "select"
     },
     "predefinedSchema": {
-      "title": "Predefined Schema Template",
+      "title": "Custom Schema Template (JSON)",
       "type": "object",
-      "description": "Optional schema template (JSON) for predefined mode",
-      "editor": "json"
+      "description": "Only used when Schema Mode is 'Predefined'. Define the exact JSON structure you want to extract.",
+      "editor": "json",
+      "prefill": {
+        "title": {"type": "string", "description": "Article title"},
+        "author": {"type": "string", "description": "Author name"}
+      }
     }
   },
   "required": ["inputMode"]
