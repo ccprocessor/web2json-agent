@@ -1,5 +1,5 @@
 {
-  "title": "Web2JSON Agent - Simple Configuration",
+  "title": "Web2JSON Agent - URL Parser",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
@@ -19,21 +19,25 @@
       "default": "parsed_data"
     },
     "inputMode": {
+      "title": "Input Mode",
       "type": "string",
       "default": "url",
       "editor": "hidden"
     },
     "iterationRounds": {
+      "title": "Iteration Rounds",
       "type": "integer",
       "default": 3,
       "editor": "hidden"
     },
     "clusterMode": {
+      "title": "Cluster Mode",
       "type": "boolean",
       "default": false,
       "editor": "hidden"
     },
     "schemaMode": {
+      "title": "Schema Mode",
       "type": "string",
       "default": "auto",
       "editor": "hidden"
