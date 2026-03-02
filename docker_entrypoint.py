@@ -116,10 +116,18 @@ def get_apify_input():
     return {}
 
 
-def save_to_dataset(data):
-    """Save data to Apify dataset using file-based method"""
-    # Use file-based saving - Apify platform will automatically recognize these files
-    # This avoids event loop conflicts with asyncio.run()
+async def save_to_dataset_async(data):
+    """Save data to Apify dataset using SDK"""
+    try:
+        await Actor.push_data(data)
+        logger.info(f"✓ Saved record via Apify SDK")
+    except Exception as e:
+        logger.error(f"Failed to save via Apify SDK: {e}")
+        raise
+
+
+def save_to_dataset_file(data):
+    """Fallback: Save data to dataset using file-based method"""
     dataset_dir = os.environ.get("APIFY_DEFAULT_DATASET_ID", "default")
     dataset_path = Path(f"apify_storage/datasets/{dataset_dir}")
     dataset_path.mkdir(parents=True, exist_ok=True)
@@ -135,13 +143,31 @@ def save_to_dataset(data):
     logger.info(f"Saved data to {output_file}")
 
 
-def main():
-    """Main entry point for Apify Actor"""
+async def async_main():
+    """Main entry point for Apify Actor (async version)"""
     logger.info("Starting web2json-agent Apify Actor")
 
-    # Get input from Apify
-    actor_input = get_apify_input()
+    # Determine if running on Apify platform
+    is_on_apify = APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1'
+
+    # Initialize Apify Actor if on platform
+    if is_on_apify:
+        await Actor.init()
+        logger.info("✓ Apify Actor initialized")
+        actor_input = await Actor.get_input() or {}
+        logger.info(f"✓ Read input via Apify SDK")
+    else:
+        actor_input = get_apify_input()
+
     logger.info(f"Received input: {json.dumps(actor_input, indent=2)}")
+
+    # Helper function to save data based on environment
+    async def save_record(data):
+        """Save data using appropriate method based on environment"""
+        if is_on_apify:
+            await save_to_dataset_async(data)
+        else:
+            save_to_dataset_file(data)
 
     # Parse input parameters
     input_mode = actor_input.get("inputMode", "html")
@@ -336,7 +362,7 @@ def main():
                                     "domain": domain,
                                     "timestamp": result_file.stat().st_mtime
                                 }
-                                save_to_dataset(record)
+                                await save_record(record)
                                 total_records += 1
                             else:
                                 # Simple value in array
@@ -346,7 +372,7 @@ def main():
                                     "domain": domain,
                                     "timestamp": result_file.stat().st_mtime
                                 }
-                                save_to_dataset(record)
+                                await save_record(record)
                                 total_records += 1
                     else:
                         # No arrays, save as single record
@@ -355,7 +381,7 @@ def main():
                             "domain": domain,
                             "timestamp": result_file.stat().st_mtime
                         }
-                        save_to_dataset(result_data)
+                        await save_record(result_data)
                         total_records += 1
 
                 logger.info(f"Saved {total_records} records to dataset")
@@ -368,7 +394,7 @@ def main():
                 with open(parser_file, "r", encoding="utf-8") as f:
                     parser_code = f.read()
 
-                save_to_dataset({
+                await save_record({
                     "_type": "parser_code",
                     "domain": domain,
                     "parser": parser_code
@@ -376,21 +402,32 @@ def main():
 
             logger.info("Web2JSON Agent completed successfully")
 
-            # Note: We don't call Actor.exit() explicitly to avoid event loop conflicts
-            # The Apify platform will handle Actor cleanup automatically when the process exits
+            # Exit Apify Actor if on platform
+            if is_on_apify:
+                await Actor.exit()
 
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error during execution: {error_msg}")
             logger.debug("Full traceback:", exc_info=True)
-            save_to_dataset({
+            await save_record({
                 "_type": "error",
                 "error": error_msg,
                 "traceback": traceback.format_exc()
             })
 
-            # Exit with error code (Apify platform will handle Actor cleanup)
-            sys.exit(1)
+            # Exit Apify Actor with error if on platform
+            if is_on_apify:
+                await Actor.exit(exit_code=1)
+            else:
+                # Exit with error code for local runs
+                sys.exit(1)
+
+
+def main():
+    """Synchronous entry point that calls async_main"""
+    import asyncio
+    asyncio.run(async_main())
 
 
 if __name__ == "__main__":
