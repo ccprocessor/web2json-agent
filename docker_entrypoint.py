@@ -116,30 +116,10 @@ def get_apify_input():
     return {}
 
 
-async def save_to_dataset_async(data):
-    """Save data using Apify SDK (async version)"""
-    try:
-        # Actor should already be initialized from get_input
-        # Just push data without using context manager
-        await Actor.push_data(data)
-        logger.info(f"✓ Saved data via Apify SDK")
-    except Exception as e:
-        logger.error(f"Failed to save via Apify SDK: {e}")
-        raise
-
-
 def save_to_dataset(data):
-    """Save data to Apify dataset - supports both SDK and file-based methods"""
-    # Method 1: Try Apify SDK first (works on Apify platform)
-    if APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1':
-        try:
-            import asyncio
-            asyncio.run(save_to_dataset_async(data))
-            return  # Success, exit early
-        except Exception as e:
-            logger.warning(f"Apify SDK save failed: {e}, falling back to file-based saving")
-
-    # Method 2: File-based saving (works locally and as fallback)
+    """Save data to Apify dataset using file-based method"""
+    # Use file-based saving - Apify platform will automatically recognize these files
+    # This avoids event loop conflicts with asyncio.run()
     dataset_dir = os.environ.get("APIFY_DEFAULT_DATASET_ID", "default")
     dataset_path = Path(f"apify_storage/datasets/{dataset_dir}")
     dataset_path.mkdir(parents=True, exist_ok=True)
