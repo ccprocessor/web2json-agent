@@ -169,26 +169,6 @@ async def async_main():
         else:
             save_to_dataset_file(data)
 
-    # Helper function to flatten nested JSON for table display
-    def flatten_json(data, parent_key='', sep='.'):
-        """
-        Flatten nested JSON structure into a single-level dictionary.
-        Arrays are converted to JSON strings.
-        """
-        items = {}
-        for k, v in data.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else k
-
-            if isinstance(v, dict):
-                # Recursively flatten nested objects
-                items.update(flatten_json(v, new_key, sep=sep))
-            elif isinstance(v, list):
-                # Convert arrays to JSON string for display
-                items[new_key] = json.dumps(v, ensure_ascii=False)
-            else:
-                items[new_key] = v
-        return items
-
     # Parse input parameters
     input_mode = actor_input.get("inputMode", "html")
     domain = actor_input.get("domain", "apify_output")
@@ -205,9 +185,6 @@ async def async_main():
         output_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Initialize URL mapping (will be populated based on input mode)
-            url_mapping = {}
-
             # Handle different input modes
             if input_mode == "html":
                 # Priority 1: htmlContents (direct text input - easiest)
@@ -308,9 +285,6 @@ async def async_main():
                         with open(input_file, "w", encoding="utf-8") as f:
                             f.write(html_content)
 
-                        # Store URL mapping: page_N.json -> URL
-                        url_mapping[f"page_{idx+1}.json"] = url
-
                         logger.info(f"Fetched and saved: {url}")
                     except Exception as e:
                         logger.error(f"Failed to fetch {url}: {e}")
@@ -365,23 +339,50 @@ async def async_main():
                     with open(result_file, "r", encoding="utf-8") as f:
                         result_data = json.load(f)
 
-                    # Add URL as the first field (if available)
-                    source_url = url_mapping.get(result_file.name, "")
+                    # Flatten array data for Apify table view
+                    # If result contains arrays (common pattern), expand them into separate records
+                    array_fields = [k for k, v in result_data.items() if isinstance(v, list) and k not in ['_metadata']]
 
-                    # Create record with URL as first field
-                    record = {"url": source_url} if source_url else {}
-                    record.update(result_data)
+                    if array_fields:
+                        # Find the main array field (usually the largest one)
+                        main_array_field = max(array_fields, key=lambda k: len(result_data[k]))
+                        main_array = result_data[main_array_field]
 
-                    # Flatten nested structures for table display
-                    flattened_record = flatten_json(record)
+                        # Page-level fields (non-array, non-metadata)
+                        page_fields = {k: v for k, v in result_data.items()
+                                     if not isinstance(v, list) and k not in ['_metadata']}
 
-                    # Add metadata
-                    flattened_record["_metadata.source_file"] = result_file.name
-                    flattened_record["_metadata.domain"] = domain
-                    flattened_record["_metadata.timestamp"] = result_file.stat().st_mtime
-
-                    await save_record(flattened_record)
-                    total_records += 1
+                        # Expand array: each item becomes a separate record
+                        for item in main_array:
+                            if isinstance(item, dict):
+                                # Combine page-level fields with item data
+                                record = {**page_fields, **item}
+                                record["_metadata"] = {
+                                    "source_file": result_file.name,
+                                    "domain": domain,
+                                    "timestamp": result_file.stat().st_mtime
+                                }
+                                await save_record(record)
+                                total_records += 1
+                            else:
+                                # Simple value in array
+                                record = {**page_fields, main_array_field: item}
+                                record["_metadata"] = {
+                                    "source_file": result_file.name,
+                                    "domain": domain,
+                                    "timestamp": result_file.stat().st_mtime
+                                }
+                                await save_record(record)
+                                total_records += 1
+                    else:
+                        # No arrays, save as single record
+                        result_data["_metadata"] = {
+                            "source_file": result_file.name,
+                            "domain": domain,
+                            "timestamp": result_file.stat().st_mtime
+                        }
+                        await save_record(result_data)
+                        total_records += 1
 
                 logger.info(f"Saved {total_records} records to dataset")
             else:
