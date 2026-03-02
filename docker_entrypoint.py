@@ -169,6 +169,26 @@ async def async_main():
         else:
             save_to_dataset_file(data)
 
+    # Helper function to flatten nested JSON for table display
+    def flatten_json(data, parent_key='', sep='.'):
+        """
+        Flatten nested JSON structure into a single-level dictionary.
+        Arrays are converted to JSON strings.
+        """
+        items = {}
+        for k, v in data.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+
+            if isinstance(v, dict):
+                # Recursively flatten nested objects
+                items.update(flatten_json(v, new_key, sep=sep))
+            elif isinstance(v, list):
+                # Convert arrays to JSON string for display
+                items[new_key] = json.dumps(v, ensure_ascii=False)
+            else:
+                items[new_key] = v
+        return items
+
     # Parse input parameters
     input_mode = actor_input.get("inputMode", "html")
     domain = actor_input.get("domain", "apify_output")
@@ -352,14 +372,15 @@ async def async_main():
                     record = {"url": source_url} if source_url else {}
                     record.update(result_data)
 
-                    # Add metadata
-                    record["_metadata"] = {
-                        "source_file": result_file.name,
-                        "domain": domain,
-                        "timestamp": result_file.stat().st_mtime
-                    }
+                    # Flatten nested structures for table display
+                    flattened_record = flatten_json(record)
 
-                    await save_record(record)
+                    # Add metadata
+                    flattened_record["_metadata.source_file"] = result_file.name
+                    flattened_record["_metadata.domain"] = domain
+                    flattened_record["_metadata.timestamp"] = result_file.stat().st_mtime
+
+                    await save_record(flattened_record)
                     total_records += 1
 
                 logger.info(f"Saved {total_records} records to dataset")
