@@ -308,20 +308,57 @@ def main():
             # Collect results and save to Apify dataset
             result_dir = output_dir / domain / "result"
             if result_dir.exists():
+                total_records = 0
                 for result_file in result_dir.glob("*.json"):
                     with open(result_file, "r", encoding="utf-8") as f:
                         result_data = json.load(f)
 
-                    # Add metadata
-                    result_data["_metadata"] = {
-                        "source_file": result_file.name,
-                        "domain": domain,
-                        "timestamp": result_file.stat().st_mtime
-                    }
+                    # Flatten array data for Apify table view
+                    # If result contains arrays (common pattern), expand them into separate records
+                    array_fields = [k for k, v in result_data.items() if isinstance(v, list) and k not in ['_metadata']]
 
-                    save_to_dataset(result_data)
+                    if array_fields:
+                        # Find the main array field (usually the largest one)
+                        main_array_field = max(array_fields, key=lambda k: len(result_data[k]))
+                        main_array = result_data[main_array_field]
 
-                logger.info(f"Saved {len(list(result_dir.glob('*.json')))} results to dataset")
+                        # Page-level fields (non-array, non-metadata)
+                        page_fields = {k: v for k, v in result_data.items()
+                                     if not isinstance(v, list) and k not in ['_metadata']}
+
+                        # Expand array: each item becomes a separate record
+                        for item in main_array:
+                            if isinstance(item, dict):
+                                # Combine page-level fields with item data
+                                record = {**page_fields, **item}
+                                record["_metadata"] = {
+                                    "source_file": result_file.name,
+                                    "domain": domain,
+                                    "timestamp": result_file.stat().st_mtime
+                                }
+                                save_to_dataset(record)
+                                total_records += 1
+                            else:
+                                # Simple value in array
+                                record = {**page_fields, main_array_field: item}
+                                record["_metadata"] = {
+                                    "source_file": result_file.name,
+                                    "domain": domain,
+                                    "timestamp": result_file.stat().st_mtime
+                                }
+                                save_to_dataset(record)
+                                total_records += 1
+                    else:
+                        # No arrays, save as single record
+                        result_data["_metadata"] = {
+                            "source_file": result_file.name,
+                            "domain": domain,
+                            "timestamp": result_file.stat().st_mtime
+                        }
+                        save_to_dataset(result_data)
+                        total_records += 1
+
+                logger.info(f"Saved {total_records} records to dataset")
             else:
                 logger.warning("No results found in output directory")
 
