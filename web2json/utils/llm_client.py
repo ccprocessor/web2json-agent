@@ -93,13 +93,23 @@ class LLMClient:
             # 如果模型不在 tiktoken 的预设中，使用 cl100k_base 作为默认
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
+        # 构建 ChatOpenAI 参数
+        client_kwargs = {
+            "model": self.model,
+            "api_key": self.api_key,
+            "base_url": self.api_base,
+            "temperature": self.temperature
+        }
+
+        # 如果启用了禁用思考模式选项，直接传递 extra_body 参数
+        if settings.disable_thinking_mode:
+            client_kwargs["extra_body"] = {
+                "thinking_mode": False
+            }
+            logger.info("思考模式已禁用 (thinking_mode=false)")
+
         # 使用 LangChain 1.0 的 ChatOpenAI（兼容所有模型）
-        self.client = ChatOpenAI(
-            model=self.model,
-            api_key=self.api_key,
-            base_url=self.api_base,
-            temperature=self.temperature
-        )
+        self.client = ChatOpenAI(**client_kwargs)
 
         self._initialized = True
         logger.info(f"LLM客户端初始化完成 - 模型: {self.model}, Base: {self.api_base}")

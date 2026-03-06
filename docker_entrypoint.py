@@ -169,25 +169,6 @@ async def async_main():
         else:
             save_to_dataset_file(data)
 
-    # Helper function to flatten nested JSON for table display
-    def flatten_json(data, parent_key='', sep='.'):
-        """
-        Flatten nested JSON structure into a single-level dictionary.
-        Arrays are converted to JSON strings.
-        """
-        items = {}
-        for k, v in data.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else k
-
-            if isinstance(v, dict):
-                # Recursively flatten nested objects
-                items.update(flatten_json(v, new_key, sep=sep))
-            elif isinstance(v, list):
-                # Convert arrays to JSON string for display
-                items[new_key] = json.dumps(v, ensure_ascii=False)
-            else:
-                items[new_key] = v
-        return items
 
     # Parse input parameters
     input_mode = actor_input.get("inputMode", "html")
@@ -282,8 +263,13 @@ async def async_main():
                 if not isinstance(urls, list):
                     urls = [urls] if urls else []
 
+                # Use default URLs if none provided
                 if not urls:
-                    raise ValueError("No URLs provided in input. Please click '+ Add' to add at least one URL.")
+                    urls = [
+                        "https://quotes.toscrape.com/page/1/",
+                        "https://quotes.toscrape.com/page/2/"
+                    ]
+                    logger.info("No URLs provided, using default demo URLs")
 
                 logger.info(f"Received {len(urls)} URLs to fetch")
 
@@ -368,36 +354,17 @@ async def async_main():
                     # Add URL as the first field (if available)
                     source_url = url_mapping.get(result_file.name, "")
 
-                    # Create record with URL as first field
+                    # Create record with URL as first field, keep original JSON structure
                     record = {"url": source_url} if source_url else {}
                     record.update(result_data)
 
-                    # Flatten nested structures for table display
-                    flattened_record = flatten_json(record)
-
-                    # Add metadata
-                    flattened_record["_metadata.source_file"] = result_file.name
-                    flattened_record["_metadata.domain"] = domain
-                    flattened_record["_metadata.timestamp"] = result_file.stat().st_mtime
-
-                    await save_record(flattened_record)
+                    # Save record without flattening or adding metadata
+                    await save_record(record)
                     total_records += 1
 
                 logger.info(f"Saved {total_records} records to dataset")
             else:
                 logger.warning("No results found in output directory")
-
-            # Also save parser code to dataset for reference
-            parser_file = output_dir / domain / "parsers" / "final_parser.py"
-            if parser_file.exists():
-                with open(parser_file, "r", encoding="utf-8") as f:
-                    parser_code = f.read()
-
-                await save_record({
-                    "_type": "parser_code",
-                    "domain": domain,
-                    "parser": parser_code
-                })
 
             logger.info("Web2JSON Agent completed successfully")
 

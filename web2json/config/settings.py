@@ -47,6 +47,9 @@ class Settings(BaseModel):
     # 代码生成 Prompt 版本 (v1: 原始版本, v2: SWDE优化版本)
     code_gen_prompt_version: str = Field(default_factory=lambda: os.getenv("CODE_GEN_PROMPT_VERSION", "v2"))
 
+    # 是否禁用思考模式（针对intern-s1-pro等支持思考模式的模型）
+    disable_thinking_mode: bool = Field(default_factory=lambda: os.getenv("DISABLE_THINKING_MODE", "false").lower() in ("true", "1", "yes"))
+
     # ============================================
     # Agent 配置
     # ============================================
