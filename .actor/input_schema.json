@@ -15,7 +15,11 @@
       "title": "URLs",
       "type": "array",
       "description": "List of URLs to parse",
-      "editor": "json"
+      "editor": "json",
+      "default": [
+        "https://quotes.toscrape.com/page/1/",
+        "https://quotes.toscrape.com/page/2/"
+      ]
     },
     "domain": {
       "title": "Domain",
@@ -29,7 +33,7 @@
       "type": "integer",
       "description": "Number of iteration rounds",
       "editor": "number",
-      "default": 3,
+      "default": 1,
       "minimum": 1,
       "maximum": 10
     }
