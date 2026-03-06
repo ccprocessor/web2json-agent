@@ -9,5 +9,10 @@
   },
   "input": "./input_schema.json",
   "dockerfile": "./Dockerfile",
-  "readme": "./README.md"
+  "readme": "./README.md",
+  "defaultRunOptions": {
+    "build": "latest",
+    "timeoutSecs": 0,
+    "memoryMbytes": 4096
+  }
 }

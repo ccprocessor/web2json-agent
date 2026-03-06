@@ -173,7 +173,7 @@ async def async_main():
     # Parse input parameters
     input_mode = actor_input.get("inputMode", "html")
     domain = actor_input.get("domain", "apify_output")
-    iteration_rounds = actor_input.get("iterationRounds", 3)
+    iteration_rounds = actor_input.get("iterationRounds", 1)
     cluster_mode = actor_input.get("clusterMode", False)
     schema_mode = actor_input.get("schemaMode", "auto")
     predefined_schema = actor_input.get("predefinedSchema")

@@ -35,12 +35,12 @@ class Settings(BaseModel):
     default_model: str = Field(default_factory=lambda: os.getenv("DEFAULT_MODEL", "claude-sonnet-4-5-20250929"))
     default_temperature: float = Field(default_factory=lambda: float(os.getenv("DEFAULT_TEMPERATURE", "0.3")))
 
-    # Agent
-    agent_model: str = Field(default_factory=lambda: os.getenv("AGENT_MODEL", "claude-sonnet-4-5-20250929"))
+    # Agent（未设置时自动使用 DEFAULT_MODEL）
+    agent_model: str = Field(default_factory=lambda: os.getenv("AGENT_MODEL") or os.getenv("DEFAULT_MODEL", "claude-sonnet-4-5-20250929"))
     agent_temperature: float = Field(default_factory=lambda: float(os.getenv("AGENT_TEMPERATURE", "0")))
 
-    # 代码生成
-    code_gen_model: str = Field(default_factory=lambda: os.getenv("CODE_GEN_MODEL", "claude-sonnet-4-5-20250929"))
+    # 代码生成（未设置时自动使用 DEFAULT_MODEL）
+    code_gen_model: str = Field(default_factory=lambda: os.getenv("CODE_GEN_MODEL") or os.getenv("DEFAULT_MODEL", "claude-sonnet-4-5-20250929"))
     code_gen_temperature: float = Field(default_factory=lambda: float(os.getenv("CODE_GEN_TEMPERATURE", "0.3")))
     code_gen_max_tokens: int = Field(default_factory=lambda: int(os.getenv("CODE_GEN_MAX_TOKENS", "16384")))
 
