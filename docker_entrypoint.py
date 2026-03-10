@@ -30,8 +30,6 @@ except ImportError:
 async def get_apify_input_async():
     """Read input using Apify SDK (async version for platform)"""
     try:
-        # Initialize Actor but don't use context manager (it calls exit())
-        await Actor.init()
         actor_input = await Actor.get_input() or {}
         logger.info(f"✓ Successfully read input via Apify SDK")
         logger.info(f"  Input keys: {list(actor_input.keys())}")
@@ -141,6 +139,14 @@ def save_to_dataset_file(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
     logger.info(f"Saved data to {output_file}")
+async def run_actor_logic(actor_input, is_on_apify):
+    logger.info(f"Received input: {json.dumps(actor_input, indent=2)}")
+
+    async def save_record(data):
+        if is_on_apify:
+            await save_to_dataset_async(data)
+        else:
+            save_to_dataset_file(data)
 
 
 async def async_main():
@@ -150,24 +156,18 @@ async def async_main():
     # Determine if running on Apify platform
     is_on_apify = APIFY_SDK_AVAILABLE and os.environ.get('APIFY_IS_AT_HOME') == '1'
 
-    # Initialize Apify Actor if on platform
     if is_on_apify:
-        await Actor.init()
-        logger.info("✓ Apify Actor initialized")
-        actor_input = await Actor.get_input() or {}
-        logger.info(f"✓ Read input via Apify SDK")
+        async with Actor:
+            logger.info("✓ Apify Actor initialized")
+            actor_input = await Actor.get_input() or {}
+            logger.info("✓ Read input via Apify SDK")
+            await run_actor_logic(actor_input, True)
+        return
     else:
         actor_input = get_apify_input()
+        await run_actor_logic(actor_input, False)
+        return
 
-    logger.info(f"Received input: {json.dumps(actor_input, indent=2)}")
-
-    # Helper function to save data based on environment
-    async def save_record(data):
-        """Save data using appropriate method based on environment"""
-        if is_on_apify:
-            await save_to_dataset_async(data)
-        else:
-            save_to_dataset_file(data)
 
 
     # Parse input parameters
@@ -368,10 +368,6 @@ async def async_main():
 
             logger.info("Web2JSON Agent completed successfully")
 
-            # Exit Apify Actor if on platform
-            if is_on_apify:
-                await Actor.exit()
-
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error during execution: {error_msg}")
@@ -382,12 +378,9 @@ async def async_main():
                 "traceback": traceback.format_exc()
             })
 
-            # Exit Apify Actor with error if on platform
-            if is_on_apify:
-                await Actor.exit(exit_code=1)
-            else:
-                # Exit with error code for local runs
+            if not is_on_apify:
                 sys.exit(1)
+            raise
 
 
 def main():
