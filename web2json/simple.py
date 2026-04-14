@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, asdict
+import numpy as np
 from loguru import logger
 
 from web2json.agent import ParserAgent
@@ -1050,14 +1051,38 @@ def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
     # 执行聚类分析
     logger.info("正在进行布局聚类分析...")
     from web2json.tools.cluster import cluster_html_layouts_optimized
+    from web2json.tools.html_layout_cosin import get_feature
+
+    valid_html_files = []
+    valid_html_contents = []
+    invalid_html_files = []
+    for file_path, html_content in zip(html_files, html_contents):
+        try:
+            feature = get_feature(html_content)
+        except Exception as e:
+            logger.warning(f"  跳过布局特征提取失败页面: {file_path} ({e})")
+            invalid_html_files.append(file_path)
+            continue
+        if not feature:
+            logger.warning(f"  跳过无有效布局特征页面: {file_path}")
+            invalid_html_files.append(file_path)
+            continue
+        valid_html_files.append(file_path)
+        valid_html_contents.append(html_content)
+
+    if not valid_html_contents:
+        raise Exception("聚类失败: 没有可用于布局聚类的有效HTML页面")
 
     try:
         labels, sim_mat, clusters = cluster_html_layouts_optimized(
-            html_contents,
+            valid_html_contents,
             use_knn_graph=True
         )
     except Exception as e:
         raise Exception(f"聚类失败: {e}")
+
+    label_map = {file_path: int(label) for file_path, label in zip(valid_html_files, labels)}
+    labels = np.array([label_map.get(file_path, -1) for file_path in html_files], dtype=int)
 
     # 统计聚类结果
     unique_labels = sorted(set(labels))
@@ -1160,4 +1185,3 @@ def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
         noise_files=noise_files,
         cluster_count=cluster_count
     )
-

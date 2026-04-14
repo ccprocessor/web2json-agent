@@ -265,6 +265,77 @@ def remove_empty_tags(
     return root
 
 
+def _contains_token_attr(element: html.HtmlElement, attr_name: str, patterns: List[str]) -> bool:
+    """检查元素指定属性中是否包含目标模式。"""
+    attr_value = element.get(attr_name, '')
+    if not attr_value:
+        return False
+
+    attr_value = attr_value.lower()
+    return any(pattern in attr_value for pattern in patterns)
+
+
+def is_sharepoint_html(html_str: str) -> bool:
+    """粗略识别 SharePoint 页面。"""
+    markers = [
+        'microsoft sharepoint',
+        '_sppagecontextinfo',
+        's4-workspace',
+        '_layouts/15',
+    ]
+    html_lower = html_str.lower()
+    return any(marker in html_lower for marker in markers)
+
+
+def remove_sharepoint_noise(root: html.HtmlElement) -> html.HtmlElement:
+    """
+    删除 SharePoint 门户模板中的高噪音区域。
+
+    主要清理全站导航、页眉页脚、社媒区、noindex 容器和 mega menu。
+    """
+    class_patterns = [
+        'noindex',
+        'mega-menu',
+        'mega-sub-menu',
+        'mega-menu-wrap',
+        'mega-menu-toggle',
+        'top-header',
+        'button-close-top-header',
+        'social-media-header',
+        'breadcrumbs',
+        'breadcrumb',
+        'ms-csrlistview-controldiv',
+    ]
+    id_patterns = [
+        'top-header',
+        'top-menu',
+        'main-menu',
+        'mega-menu',
+        'social-media-header',
+        'navigationmenu',
+        'footer',
+        'ctl00_placeholdersitenamen',
+    ]
+    tag_names = {'header', 'footer', 'nav'}
+
+    remove_targets = []
+    for element in root.iter():
+        tag = str(element.tag).lower() if hasattr(element, 'tag') else ''
+        if tag in tag_names:
+            remove_targets.append(element)
+            continue
+        if _contains_token_attr(element, 'class', class_patterns):
+            remove_targets.append(element)
+            continue
+        if _contains_token_attr(element, 'id', id_patterns):
+            remove_targets.append(element)
+
+    # 去重，避免重复删除同一元素
+    unique_targets = list(dict.fromkeys(remove_targets))
+    remove_reversely(unique_targets)
+    return root
+
+
 def clean_attributes(
     root: html.HtmlElement,
     keep_attrs: List[str] = None
@@ -440,6 +511,11 @@ def simplify_html(
                 clean_attrs=True,
                 keep_attrs=keep_attrs_list
             )
+            if is_sharepoint_html(html_str):
+                simplified_root = html_to_element(result)
+                simplified_root = remove_sharepoint_noise(simplified_root)
+                simplified_root = remove_empty_tags(simplified_root)
+                result = element_to_html(simplified_root)
         # 根据aggressive参数选择模式
         elif aggressive:
             # 激进模式：删除所有无用内容

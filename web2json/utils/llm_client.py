@@ -17,9 +17,9 @@ project_root = Path(__file__).parent.parent
 env_path = project_root / ".env"
 load_dotenv(env_path)
 
-# 验证
-if not os.getenv("OPENAI_API_KEY"):
-    raise ValueError(f".env 文件路径: {env_path}, API Key未加载")
+# 验证（延迟到实际使用时）
+_api_key_missing = not os.getenv("OPENAI_API_KEY")
+_env_path_for_error = env_path
 
 # 定义场景类型
 ScenarioType = Literal["default", "code_gen", "agent"]
@@ -80,6 +80,9 @@ class LLMClient:
         # 避免重复初始化
         if self._initialized:
             return
+
+        if _api_key_missing and not os.getenv("OPENAI_API_KEY"):
+            raise ValueError(f".env 文件路径: {_env_path_for_error}, API Key未加载")
 
         self.api_key = api_key or settings.openai_api_key
         self.api_base = api_base or settings.openai_api_base

@@ -3,6 +3,9 @@
 # Web2JSON Agent - Startup Script
 # Starts both the backend API and the frontend UI simultaneously
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON_BIN="${PYTHON_BIN:-python3.11}"
+
 echo "🚀 Starting Web2JSON Agent..."
 echo ""
 
@@ -21,14 +24,14 @@ fi
 
 # Start the backend
 echo "📡 Starting backend API (port 8000)..."
-cd /Users/brown/Projects/AILabProject/web2json-agent
+cd "$SCRIPT_DIR"
 
 # Create logs directory if it doesn't exist
 mkdir -p logs
 
 # Production Mode: Disable automatic reloading to avoid restarts triggered by changes in the output directory
 # If you need reload for development, use: --reload --reload-exclude 'output/**' --reload-exclude 'logs/**'
-uvicorn web2json_api.main:app --host 0.0.0.0 --port 8000 \
+"$PYTHON_BIN" -m uvicorn web2json_api.main:app --host 0.0.0.0 --port 8000 \
   --reload-exclude 'output/**' \
   --reload-exclude 'logs/**' \
   --reload-exclude '*.log' \
@@ -49,7 +52,7 @@ fi
 # Start the frontend
 echo ""
 echo "🎨 Starting frontend UI (port 5173)..."
-cd web2json_ui && npm run dev > ../logs/ui.log 2>&1 &
+cd "$SCRIPT_DIR/web2json_ui" && npm run dev > "$SCRIPT_DIR/logs/ui.log" 2>&1 &
 FRONTEND_PID=$!
 echo "   Frontend PID: $FRONTEND_PID"
 
@@ -70,8 +73,8 @@ echo "Or press Ctrl+C and run: pkill -f 'uvicorn|vite'"
 echo ""
 
 # Save PID
-echo $BACKEND_PID > .backend.pid
-echo $FRONTEND_PID > .frontend.pid
+echo $BACKEND_PID > "$SCRIPT_DIR/.backend.pid"
+echo $FRONTEND_PID > "$SCRIPT_DIR/.frontend.pid"
 
 # Wait for user interruption
 wait
