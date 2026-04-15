@@ -19,6 +19,13 @@ for env_path in env_paths:
         break
 
 
+def _env_optional_float(name: str) -> Optional[float]:
+    raw = os.getenv(name)
+    if raw is None or str(raw).strip() == "":
+        return None
+    return float(raw)
+
+
 class Settings(BaseModel):
     """全局配置"""
 
@@ -27,6 +34,21 @@ class Settings(BaseModel):
     # ============================================
     openai_api_key: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     openai_api_base: str = Field(default_factory=lambda: os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"))
+
+    # LLM 请求：超时与失败重试（网关 502/503、超时、限流等）
+    llm_request_timeout: Optional[float] = Field(
+        default_factory=lambda: _env_optional_float("LLM_REQUEST_TIMEOUT")
+    )
+    # 最大尝试次数（含首次请求），例如 6 表示首次失败后最多再试 5 次
+    llm_api_retry_max_attempts: int = Field(
+        default_factory=lambda: int(os.getenv("LLM_API_RETRY_MAX_ATTEMPTS", "6"))
+    )
+    llm_api_retry_base_seconds: float = Field(
+        default_factory=lambda: float(os.getenv("LLM_API_RETRY_BASE_SECONDS", "1.0"))
+    )
+    llm_api_retry_max_seconds: float = Field(
+        default_factory=lambda: float(os.getenv("LLM_API_RETRY_MAX_SECONDS", "60.0"))
+    )
 
     # ============================================
     # 模型配置

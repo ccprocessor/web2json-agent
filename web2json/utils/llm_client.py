@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from loguru import logger
 from web2json.config.settings import settings
+from web2json.utils.llm_retry import chat_openai_invoke_kwargs, invoke_with_retry
 
 # 加载项目根目录的 .env 文件
 project_root = Path(__file__).parent.parent
@@ -96,12 +97,13 @@ class LLMClient:
             # 如果模型不在 tiktoken 的预设中，使用 cl100k_base 作为默认
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
-        # 构建 ChatOpenAI 参数
+        # 构建 ChatOpenAI 参数（关闭 SDK 内置重试，由 chat_completion 统一退避）
         client_kwargs = {
             "model": self.model,
             "api_key": self.api_key,
             "base_url": self.api_base,
-            "temperature": self.temperature
+            "temperature": self.temperature,
+            **chat_openai_invoke_kwargs(),
         }
 
         # 如果启用了禁用思考模式选项，直接传递 extra_body 参数
@@ -241,8 +243,11 @@ class LLMClient:
             模型响应文本
         """
         try:
-            # 使用 LangChain 1.0 的 invoke 方法
-            response = self.client.invoke(messages)
+            # 使用 LangChain 1.0 的 invoke 方法（网关/超时等可重试）
+            response = invoke_with_retry(
+                "chat_completion",
+                lambda: self.client.invoke(messages),
+            )
             
             # 从响应中提取 token 使用情况
             if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:

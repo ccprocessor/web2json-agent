@@ -149,6 +149,7 @@ class SchemaPhase(BasePhase):
 
         if not schema_results:
             logger.error("没有成功处理的Schema")
+            result["error"] = "没有成功处理的Schema"
             return result
 
         # ============ 构建轮次结果 ============
@@ -202,8 +203,10 @@ class SchemaPhase(BasePhase):
                     self.progress_callback("schema_merge", "Schema合并完成", 35)
 
             except Exception as e:
-                logger.error(f"合并多个Schema失败: {str(e)}")
+                err_text = str(e)
+                logger.error(f"合并多个Schema失败: {err_text}")
                 import traceback
                 logger.debug(traceback.format_exc())
+                result["error"] = f"Schema合并失败: {err_text}"
 
         return result

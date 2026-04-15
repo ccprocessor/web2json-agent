@@ -12,6 +12,7 @@ import os
 from web2json.config.settings import settings
 from web2json.prompts.schema_extraction import SchemaExtractionPrompts
 from web2json.prompts.schema_merge import SchemaMergePrompts
+from web2json.utils.llm_retry import chat_openai_invoke_kwargs, invoke_with_retry
 
 
 def _parse_llm_response(response: str) -> Dict:
@@ -103,7 +104,8 @@ def extract_schema_from_html(html_content: str) -> Dict:
             model=settings.default_model,
             api_key=os.getenv("OPENAI_API_KEY"),
             base_url=os.getenv("OPENAI_API_BASE"),
-            temperature=0.1
+            temperature=0.1,
+            **chat_openai_invoke_kwargs(),
         )
 
         messages = [
@@ -111,7 +113,9 @@ def extract_schema_from_html(html_content: str) -> Dict:
             {"role": "user", "content": f"{prompt}\n\n## HTML内容\n\n```html\n{html_content[:50000]}\n```"}
         ]
 
-        response = model.invoke(messages)
+        response = invoke_with_retry(
+            "extract_schema_from_html", lambda: model.invoke(messages)
+        )
 
         # 3. 解析响应
         if hasattr(response, 'content'):
@@ -154,7 +158,8 @@ def merge_multiple_schemas(schemas: List[Dict]) -> Dict:
             model=settings.default_model,
             api_key=os.getenv("OPENAI_API_KEY"),
             base_url=os.getenv("OPENAI_API_BASE"),
-            temperature=0.1
+            temperature=0.1,
+            **chat_openai_invoke_kwargs(),
         )
 
         messages = [
@@ -162,7 +167,9 @@ def merge_multiple_schemas(schemas: List[Dict]) -> Dict:
             {"role": "user", "content": prompt}
         ]
 
-        response = model.invoke(messages)
+        response = invoke_with_retry(
+            "merge_multiple_schemas", lambda: model.invoke(messages)
+        )
 
         # 3. 解析响应
         if hasattr(response, 'content'):
@@ -223,7 +230,8 @@ def enrich_schema_with_xpath(schema_template: Dict, html_content: str) -> Dict:
             model=settings.default_model,
             api_key=os.getenv("OPENAI_API_KEY"),
             base_url=os.getenv("OPENAI_API_BASE"),
-            temperature=0.1
+            temperature=0.1,
+            **chat_openai_invoke_kwargs(),
         )
 
         messages = [
@@ -231,7 +239,9 @@ def enrich_schema_with_xpath(schema_template: Dict, html_content: str) -> Dict:
             {"role": "user", "content": user_message}
         ]
 
-        response = model.invoke(messages)
+        response = invoke_with_retry(
+            "enrich_schema_with_xpath", lambda: model.invoke(messages)
+        )
 
         # 4. 解析响应
         if hasattr(response, 'content'):
