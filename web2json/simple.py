@@ -5,7 +5,7 @@ Simple API for web2json
 import sys
 import json
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Callable
 from dataclasses import dataclass, asdict
 import numpy as np
 from loguru import logger
@@ -99,7 +99,7 @@ class Web2JsonConfig:
 
     Args:
         name: 运行名称（在output_path下创建此名称的子目录）
-        html_path: HTML文件目录
+        html_path: HTML 目录、单个 ``.html``/``.htm`` 文件，或 crawl 源 ``.jsonl``（见 ``crawl_html_field``）
         output_path: 输出主目录（默认为"output"）
         iteration_rounds: 迭代轮数（用于Schema学习的样本数量，默认3）
         schema: Schema模板（可选，为None时使用auto模式，有值时使用predefined模式）
@@ -129,6 +129,9 @@ class Web2JsonConfig:
     parser_code: Optional[str] = None
     save: Optional[List[str]] = None
     remove_null_fields: bool = True
+    # crawl JSONL：html_path 为 .jsonl 时物化 HTML 所用字段与主键（见 _resolve_pipeline_html_files）
+    crawl_html_field: str = "html"
+    crawl_jsonl_id_field: Optional[str] = "track_id"
 
     def __post_init__(self):
         """验证配置"""
@@ -205,6 +208,359 @@ def _read_html_files(directory_path: str) -> List[str]:
         return html_files
 
     raise ValueError(f"路径既不是文件也不是目录: {directory_path}")
+
+
+def _resolve_pipeline_html_files(
+    config: Web2JsonConfig,
+) -> tuple[List[str], Optional[Callable[[], None]]]:
+    """
+    将 ``html_path`` 解析为 HTML 文件路径列表。
+
+    - 目录 / 单 ``.html``：沿用 ``_read_html_files``。
+    - ``.jsonl``：把每行 ``html`` 字段物化到**临时目录**中的 ``.html``，避免在项目里落大量切片文件；
+      返回第二个值 ``cleanup``，调用方须在 ``finally`` 中执行以删除临时目录。
+    """
+    import shutil
+    import tempfile
+    from web2json.tools.crawl_jsonl import materialize_jsonl_to_html_dir
+
+    p = Path(config.html_path)
+    if not p.exists():
+        raise FileNotFoundError(f"路径不存在: {config.html_path}")
+
+    if p.is_file() and p.suffix.lower() == ".jsonl":
+        tmp = Path(tempfile.mkdtemp(prefix="w2j_crawl_jsonl_"))
+        try:
+            hf = getattr(config, "crawl_html_field", "html")
+            idf = getattr(config, "crawl_jsonl_id_field", "track_id")
+            files = materialize_jsonl_to_html_dir(
+                p, tmp, html_field=hf, id_field=idf
+            )
+        except Exception:
+            shutil.rmtree(tmp, ignore_errors=True)
+            raise
+        if not files:
+            shutil.rmtree(tmp, ignore_errors=True)
+            raise ValueError(
+                f"JSONL 中无可用 html 字段（字段名: {getattr(config, 'crawl_html_field', 'html')}）: {config.html_path}"
+            )
+
+        def cleanup() -> None:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        logger.info(
+            f"  [crawl jsonl] 已将 {len(files)} 条 HTML 物化到临时目录（流水线结束后自动删除）"
+        )
+        return files, cleanup
+
+    if p.is_file():
+        if p.suffix.lower() in (".html", ".htm"):
+            return [str(p.resolve())], None
+        raise ValueError(
+            f"不支持的文件: {p}（请使用 HTML 目录、单个 .html 或 crawl .jsonl）"
+        )
+    if p.is_dir():
+        return _read_html_files(str(p)), None
+    raise ValueError(f"路径既不是文件也不是目录: {config.html_path}")
+
+
+def _execute_crawl_layout_cluster(
+    line_metas: List[Dict[str, Any]],
+    config: Web2JsonConfig,
+    *,
+    output_stem: str,
+    hf: str,
+    rid_f: Optional[str],
+    report_extra: Optional[Dict[str, Any]] = None,
+    annotate_slice_rows: bool = False,
+) -> ClusterResult:
+    """对已加载的 ``line_metas``（见 ``load_crawl_line_metas_for_file``）执行布局聚类并可选落盘。"""
+    from web2json.tools.cluster import cluster_html_layouts_optimized
+    from web2json.tools.crawl_jsonl import split_jsonl_by_cluster_labels, write_jsonl_lines
+    from web2json.tools.html_layout_cosin import get_feature
+
+    if not line_metas:
+        raise ValueError("无有效行")
+
+    surrogate_keys: List[str] = [
+        f"{m['source_name']}:{m['line_no']}" for m in line_metas
+    ]
+    valid_keys: List[str] = []
+    valid_contents: List[str] = []
+    for m, sk in zip(line_metas, surrogate_keys):
+        if not m.get("html"):
+            continue
+        try:
+            feature = get_feature(m["html"])
+        except Exception as e:
+            logger.warning(f"  跳过布局特征提取失败: {sk} ({e})")
+            continue
+        if not feature:
+            logger.warning(f"  跳过无有效布局特征: {sk}")
+            continue
+        valid_keys.append(sk)
+        valid_contents.append(m["html"])
+
+    if not valid_contents:
+        raise Exception("聚类失败: 没有可用于布局聚类的有效 HTML 页面")
+
+    try:
+        labels_partial, _sim, _clusters = cluster_html_layouts_optimized(
+            valid_contents,
+            use_knn_graph=True,
+        )
+    except Exception as e:
+        raise Exception(f"聚类失败: {e}") from e
+
+    label_map = {k: int(lbl) for k, lbl in zip(valid_keys, labels_partial)}
+    labels = np.array([label_map.get(sk, -1) for sk in surrogate_keys], dtype=int)
+
+    unique_labels = sorted(set(labels.tolist()))
+    noise_count = sum(1 for l in labels if l == -1)
+    cluster_count = len([l for l in unique_labels if l != -1])
+
+    logger.info("✓ 聚类分析完成")
+    logger.info(f"  总行数（非空行）: {len(line_metas)}")
+    logger.info(f"  识别出的布局簇数: {cluster_count}")
+    logger.info(f"  噪声点（未归类）: {noise_count}")
+
+    clusters_dict: Dict[str, List[str]] = {}
+    noise_files: List[str] = []
+    for lbl in unique_labels:
+        ids = [line_metas[i]["rid"] for i in range(len(line_metas)) if labels[i] == lbl]
+        if not ids:
+            continue
+        if lbl == -1:
+            noise_files = ids
+            clusters_dict["noise"] = ids
+        else:
+            clusters_dict[f"cluster_{lbl}"] = ids
+        logger.info(f"  {'噪声点' if lbl == -1 else f'簇 {lbl}'}: {len(ids)} 条")
+
+    if config.should_save():
+        out_root = Path(config.get_full_output_path())
+        out_root.mkdir(parents=True, exist_ok=True)
+        stem = output_stem
+
+        if config.should_save_item("report"):
+            report_payload: Dict[str, Any] = {
+                "source": "crawl_jsonl",
+                "html_field": hf,
+                "record_id_field": rid_f,
+                "clusters": {k: v for k, v in clusters_dict.items() if k != "noise"},
+                "noise_record_ids": noise_files,
+                "labels": labels.tolist(),
+                "record_ids": [m["rid"] for m in line_metas],
+                "record_keys": surrogate_keys,
+                "source_jsonl": [m["source_jsonl"] for m in line_metas],
+                "cluster_count": cluster_count,
+                "total_records": len(line_metas),
+            }
+            if report_extra:
+                report_payload.update(report_extra)
+
+            report_json = out_root / "cluster_report.json"
+            with open(report_json, "w", encoding="utf-8") as f:
+                json.dump(report_payload, f, ensure_ascii=False, indent=2)
+            logger.info(f"  ✓ 报告已保存: {report_json}")
+
+            cluster_list_path = out_root / "cluster_list.jsonl"
+            list_rows: List[Dict[str, Any]] = []
+            for i, m in enumerate(line_metas):
+                lab = int(labels[i])
+                list_rows.append(
+                    {
+                        "global_index": i,
+                        "layout_cluster_id": lab,
+                        "source_jsonl": m["source_jsonl"],
+                        "source_name": m["source_name"],
+                        "line_no": m["line_no"],
+                        "record_id": m["rid"],
+                    }
+                )
+            write_jsonl_lines(cluster_list_path, list_rows)
+            logger.info(f"  ✓ 聚类清单已保存: {cluster_list_path}")
+
+            info_txt = out_root / "cluster_info.txt"
+            with open(info_txt, "w", encoding="utf-8") as f:
+                f.write("Crawl JSONL 布局聚类结果\n")
+                f.write("=" * 70 + "\n\n")
+                if report_extra and report_extra.get("jsonl_files"):
+                    f.write(f"源 JSONL 文件数: {len(report_extra['jsonl_files'])}\n")
+                f.write(f"总行数: {len(line_metas)}\n")
+                f.write(f"簇数: {cluster_count}\n")
+                f.write(f"噪声: {noise_count}\n\n")
+                for lbl in unique_labels:
+                    ids = [line_metas[i]["rid"] for i in range(len(line_metas)) if labels[i] == lbl]
+                    if lbl == -1:
+                        f.write(f"噪声点: {len(ids)} 条\n")
+                    else:
+                        f.write(f"簇 {lbl}: {len(ids)} 条\n")
+                    for rid in ids[:5]:
+                        f.write(f"  - {rid}\n")
+                    if len(ids) > 5:
+                        f.write(f"  ... 还有 {len(ids) - 5} 条\n")
+                    f.write("\n")
+            logger.info(f"  ✓ 摘要已保存: {info_txt}")
+
+        if config.should_save_item("jsonl"):
+            recs = []
+            for i, m in enumerate(line_metas):
+                row = dict(m["obj"])
+                if annotate_slice_rows:
+                    row["layout_cluster_id"] = int(labels[i])
+                    row["crawl_source_name"] = m["source_name"]
+                    row["crawl_line_no"] = m["line_no"]
+                recs.append(row)
+            split_jsonl_by_cluster_labels(
+                recs,
+                labels.tolist(),
+                out_dir=out_root,
+                stem=stem,
+            )
+            logger.info(f"  ✓ 已按簇写出 JSONL 切片到: {out_root}")
+
+        logger.info(f"✓ 结果已保存到: {out_root}")
+
+    clusters_only = {k: v for k, v in clusters_dict.items() if k.startswith("cluster_")}
+    return ClusterResult(
+        clusters=clusters_only,
+        labels=labels,
+        noise_files=noise_files,
+        cluster_count=cluster_count,
+    )
+
+
+def classify_crawl_jsonl(
+    config: Web2JsonConfig,
+    jsonl_path: Optional[str] = None,
+    *,
+    html_field: Optional[str] = None,
+    record_id_field: Optional[str] = None,
+    annotate_slice_rows: bool = False,
+) -> ClusterResult:
+    """API：对 crawl JSONL 按布局聚类，并按簇写出切片 JSONL（不物化 HTML 到磁盘）。
+
+    从每行 JSON 的 ``html``（或 ``html_field``）读入 HTML，布局特征与
+    ``classify_html_dir`` 相同。输出文件名形如
+    ``{jsonl 主名}_cluster_0.jsonl``、``{主名}_noise.jsonl``。
+
+    - ``config.html_path`` 或参数 ``jsonl_path``：指向 ``.jsonl`` 文件。
+    - ``config.save`` 含 ``report`` 时写 ``cluster_report.json`` / ``cluster_info.txt`` /
+      ``cluster_list.jsonl``；含 ``jsonl`` 时写各簇切片（推荐 ``['report', 'jsonl']``）。
+
+    ``ClusterResult.clusters`` 的值为 **record_id** 列表（``track_id`` 或 ``line_{n}``），
+    不是文件路径。
+    """
+    from web2json.tools.crawl_jsonl import load_crawl_line_metas_for_file
+
+    _setup_logger()
+    path = Path(jsonl_path or config.html_path)
+    if not path.is_file() or path.suffix.lower() != ".jsonl":
+        raise ValueError("classify_crawl_jsonl 需要指向一个 .jsonl 文件")
+
+    hf = html_field if html_field is not None else getattr(config, "crawl_html_field", "html")
+    rid_f = (
+        record_id_field
+        if record_id_field is not None
+        else getattr(config, "crawl_jsonl_id_field", "track_id")
+    )
+
+    logger.info(f"[API] classify_crawl_jsonl - 从 JSONL 读 html 并布局聚类")
+    logger.info(f"  JSONL: {path}")
+    logger.info(f"  html 字段: {hf}, id 字段: {rid_f}")
+    if config.should_save():
+        logger.info(f"  保存内容: {', '.join(config.save)}")
+        logger.info(f"  输出路径: {config.get_full_output_path()}")
+
+    line_metas = load_crawl_line_metas_for_file(path, html_field=hf, record_id_field=rid_f)
+    report_extra = {
+        "jsonl_path": str(path.resolve()),
+        "mode": "single_file",
+    }
+    return _execute_crawl_layout_cluster(
+        line_metas,
+        config,
+        output_stem=path.stem,
+        hf=hf,
+        rid_f=rid_f,
+        report_extra=report_extra,
+        annotate_slice_rows=annotate_slice_rows,
+    )
+
+
+def classify_crawl_jsonl_dir(
+    config: Web2JsonConfig,
+    jsonl_dir: Optional[str] = None,
+    *,
+    recursive: bool = True,
+    html_field: Optional[str] = None,
+    record_id_field: Optional[str] = None,
+    output_stem: str = "ms_web_jwn_union",
+    annotate_slice_rows: bool = True,
+) -> ClusterResult:
+    """API：将目录下**所有** ``*.jsonl`` 合并为一次布局聚类（不按文件顺序串行跑 schema 流水线）。
+
+    适用于 ``Prod/ms-web-jwn`` 等多文件场景：先统一得到 ``cluster_list.jsonl``，
+    再按簇分别对切片调用 ``extract_schema`` / ``infer_code`` / ``extract_data_with_code``。
+
+    - ``jsonl_dir`` 或 ``config.html_path``：目录路径。
+    - ``recursive``：是否递归子目录查找 ``*.jsonl``。
+    - ``output_stem``：输出切片文件名前缀，如 ``{stem}_cluster_0.jsonl``。
+    - ``annotate_slice_rows``：为 ``jsonl`` 切片每行附加 ``layout_cluster_id``、``crawl_source_name``、``crawl_line_no``（与 ``cluster_list`` 对齐，无 ``_w2j`` 前缀）。
+
+    需在 ``config.save`` 中包含 ``report``（含 ``cluster_list.jsonl``）与可选 ``jsonl``。
+    """
+    from web2json.tools.crawl_jsonl import discover_jsonl_files, load_crawl_line_metas_for_file
+
+    _setup_logger()
+    root = Path(jsonl_dir or config.html_path)
+    if not root.is_dir():
+        raise NotADirectoryError(f"classify_crawl_jsonl_dir 需要目录: {root}")
+
+    hf = html_field if html_field is not None else getattr(config, "crawl_html_field", "html")
+    rid_f = (
+        record_id_field
+        if record_id_field is not None
+        else getattr(config, "crawl_jsonl_id_field", "track_id")
+    )
+
+    files = discover_jsonl_files(root, recursive=recursive)
+    if not files:
+        raise FileNotFoundError(f"目录下未找到 .jsonl: {root}")
+
+    logger.info(f"[API] classify_crawl_jsonl_dir - 合并 {len(files)} 个 JSONL 做一次布局聚类")
+    for fp in files[:20]:
+        logger.info(f"  - {fp}")
+    if len(files) > 20:
+        logger.info(f"  ... 共 {len(files)} 个文件")
+
+    line_metas: List[Dict[str, Any]] = []
+    for fp in files:
+        line_metas.extend(load_crawl_line_metas_for_file(fp, html_field=hf, record_id_field=rid_f))
+
+    if not line_metas:
+        raise ValueError("合并后无任何有效行")
+
+    report_extra = {
+        "mode": "multi_jsonl_union",
+        "jsonl_dir": str(root.resolve()),
+        "jsonl_files": [str(p.resolve()) for p in files],
+        "jsonl_file_count": len(files),
+    }
+    if config.should_save():
+        logger.info(f"  保存内容: {', '.join(config.save)}")
+        logger.info(f"  输出路径: {config.get_full_output_path()}")
+
+    return _execute_crawl_layout_cluster(
+        line_metas,
+        config,
+        output_stem=output_stem,
+        hf=hf,
+        rid_f=rid_f,
+        report_extra=report_extra,
+        annotate_slice_rows=annotate_slice_rows,
+    )
 
 
 def _cleanup_unwanted_files(output_path: Path, save_items: List[str], api_type: str = "extract_data"):
@@ -336,9 +692,9 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
         logger.info(f"  保存内容: {', '.join(config.save)}")
         logger.info(f"  输出路径: {config.get_full_output_path()}")
 
-    # 读取HTML文件
-    html_files = _read_html_files(config.html_path)
-    logger.info(f"找到 {len(html_files)} 个HTML文件")
+    jsonl_cleanup: Optional[Callable[[], None]] = None
+    html_files, jsonl_cleanup = _resolve_pipeline_html_files(config)
+    logger.info(f"找到 {len(html_files)} 个 HTML 文件")
 
     # 根据是否需要保存决定使用临时目录还是持久目录
     import tempfile
@@ -483,6 +839,8 @@ def extract_data(config: Web2JsonConfig) -> ExtractDataResult:
         )
 
     finally:
+        if jsonl_cleanup:
+            jsonl_cleanup()
         # 根据配置决定清理策略
         if use_temp_dir:
             # 临时目录：完全清理
@@ -539,9 +897,9 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
         logger.info(f"  保存内容: {', '.join(config.save)}")
         logger.info(f"  输出路径: {config.get_full_output_path()}")
 
-    # 读取HTML文件
-    html_files = _read_html_files(config.html_path)
-    logger.info(f"找到 {len(html_files)} 个HTML文件")
+    jsonl_cleanup: Optional[Callable[[], None]] = None
+    html_files, jsonl_cleanup = _resolve_pipeline_html_files(config)
+    logger.info(f"找到 {len(html_files)} 个 HTML 文件")
 
     # 根据是否需要保存决定使用临时目录还是持久目录
     import tempfile
@@ -643,6 +1001,8 @@ def extract_schema(config: Web2JsonConfig) -> ExtractSchemaResult:
         )
 
     finally:
+        if jsonl_cleanup:
+            jsonl_cleanup()
         # 根据配置决定清理策略
         if use_temp_dir:
             # 临时目录：完全清理
@@ -714,16 +1074,9 @@ def infer_code(config: Web2JsonConfig) -> InferCodeResult:
         logger.info(f"  保存内容: {', '.join(config.save)}")
         logger.info(f"  输出路径: {config.get_full_output_path()}")
 
-    # 处理HTML路径（可能是目录或单个文件）
-    html_file_path = Path(config.html_path)
-    if html_file_path.is_dir():
-        html_files = _read_html_files(config.html_path)
-    elif html_file_path.is_file():
-        html_files = [str(html_file_path.absolute())]
-    else:
-        raise FileNotFoundError(f"HTML路径不存在: {config.html_path}")
-
-    logger.info(f"找到 {len(html_files)} 个HTML文件")
+    jsonl_cleanup: Optional[Callable[[], None]] = None
+    html_files, jsonl_cleanup = _resolve_pipeline_html_files(config)
+    logger.info(f"找到 {len(html_files)} 个 HTML 文件")
 
     # 根据是否需要保存决定使用临时目录还是持久目录
     import tempfile
@@ -824,6 +1177,8 @@ def infer_code(config: Web2JsonConfig) -> InferCodeResult:
         )
 
     finally:
+        if jsonl_cleanup:
+            jsonl_cleanup()
         # 根据配置决定清理策略
         if use_temp_dir:
             # 临时目录：完全清理
@@ -913,16 +1268,9 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
         logger.info(f"  保存内容: {', '.join(config.save)}")
         logger.info(f"  输出路径: {config.get_full_output_path()}")
 
-    # 处理HTML路径（可能是目录或单个文件）
-    html_file_path = Path(config.html_path)
-    if html_file_path.is_dir():
-        html_files = _read_html_files(config.html_path)
-    elif html_file_path.is_file():
-        html_files = [str(html_file_path.absolute())]
-    else:
-        raise FileNotFoundError(f"HTML路径不存在: {config.html_path}")
-
-    logger.info(f"找到 {len(html_files)} 个HTML文件")
+    jsonl_cleanup: Optional[Callable[[], None]] = None
+    html_files, jsonl_cleanup = _resolve_pipeline_html_files(config)
+    logger.info(f"找到 {len(html_files)} 个 HTML 文件")
 
     # 确定是否需要保存到磁盘
     should_save = config.should_save()
@@ -978,6 +1326,8 @@ def extract_data_with_code(config: Web2JsonConfig) -> ParseResult:
         )
 
     finally:
+        if jsonl_cleanup:
+            jsonl_cleanup()
         # 清理临时parser文件
         import os
         if os.path.exists(temp_parser_path):
@@ -1033,6 +1383,20 @@ def classify_html_dir(config: Web2JsonConfig) -> ClusterResult:
     if config.should_save():
         logger.info(f"  保存内容: {', '.join(config.save)}")
         logger.info(f"  输出路径: {config.get_full_output_path()}")
+
+    p_html = Path(config.html_path)
+    if p_html.is_file() and p_html.suffix.lower() == ".jsonl":
+        logger.info("  检测到 crawl .jsonl：改用 classify_crawl_jsonl（按 html 字段聚类并写出切片）")
+        return classify_crawl_jsonl(config)
+
+    if p_html.is_dir():
+        has_html = bool(list(p_html.glob("*.html")) + list(p_html.glob("*.htm")))
+        top_jsonl = list(p_html.glob("*.jsonl"))
+        if top_jsonl and not has_html:
+            logger.info(
+                "  检测到目录顶层仅有 .jsonl（无 .html）：改用 classify_crawl_jsonl_dir 合并聚类"
+            )
+            return classify_crawl_jsonl_dir(config, jsonl_dir=str(p_html), recursive=False)
 
     # 读取HTML文件
     html_files = _read_html_files(config.html_path)

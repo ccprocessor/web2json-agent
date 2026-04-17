@@ -18,6 +18,8 @@ from web2json.simple import (
     infer_code,
     extract_data_with_code,
     classify_html_dir,
+    classify_crawl_jsonl,
+    classify_crawl_jsonl_dir,
     # 返回数据类
     ExtractDataResult,
     ExtractSchemaResult,
@@ -38,6 +40,8 @@ __all__ = [
     "infer_code",
     "extract_data_with_code",
     "classify_html_dir",
+    "classify_crawl_jsonl",
+    "classify_crawl_jsonl_dir",
     # 返回数据类
     "ExtractDataResult",
     "ExtractSchemaResult",
