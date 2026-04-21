@@ -46,8 +46,6 @@ flowchart TD
 - `run_cluster_pipeline()` 处理的是“单个 cluster 的输入 jsonl”
 - 每个 cluster 都会各自执行一遍 `extract_schema -> infer_code -> extract_data_with_code`
 
-![web2json flowchart](./web2json_flowchat.png)
-
 ---
 
 ## 2. 先区分两层输入
