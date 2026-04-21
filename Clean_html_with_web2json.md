@@ -1,6 +1,6 @@
-# 业务代码版流程（只保留聚类与按簇抽取）
+# 业务代码版流程（聚类与按簇抽取）
 
-**业务逻辑**：
+利用 `web2json` 提出jsonl中html content 相关的核心业务逻辑，聚焦以下三个方面：
 
 1. 多个源 `jsonl` 的 `html` 如何统一做布局聚类
 2. 聚类后如何按簇切片
@@ -9,12 +9,11 @@
    - `infer_code`
    - `extract_data_with_code`
 
-这份文档**不展开**下面这些外围实现：
+正文部分不展开以下外围实现：
 
-- 如何从 S3 下载
-- 如何上传回 S3
-- 如何写 summary
-- 如何做最终发布与字节定位
+- S3 下载与上传
+- summary 生成
+- 最终发布与字节定位
 
 ---
 
@@ -41,166 +40,109 @@ flowchart TD
     I3 --> J["输出该簇 schema / parser / parsed_data"]
 ```
 
-- 先把多个源 jsonl 里的每条页面按 html 统一聚类，生成一张 cluster 索引表，再按 cluster 把原始数据重组切片，为后面的按簇 schema 学习和 parser 生成做准备。
-- 聚类之后会被重组为“每个 cluster 一份输入 jsonl”
+该流程表达的核心含义如下：
+
+- 原始输入由多个源 `jsonl` 构成
+- 聚类后会重组为“每个 cluster 一份输入 jsonl”
 - `run_cluster_pipeline()` 处理的是“单个 cluster 的输入 jsonl”
-- 每个 cluster 都会各自执行一遍 `extract_schema -> infer_code -> extract_data_with_code`
+- 每个 cluster 都会独立执行 `extract_schema -> infer_code -> extract_data_with_code`
 
 ---
 
-## 2. 先区分两层输入
+## 2. 两层输入的区别
 
-### 第一层：站点原始输入
+### 2.1 站点原始输入
 
-像 `ms-web-mma` 这种，原始输入是：
+`ms-web-mma` 的原始输入是一个目录，目录下包含多个源 `jsonl` 文件，例如当前场景中共有 6 个源 `jsonl`。这些文件共同构成聚类前的原始数据集。
 
-- 一个目录
-- 里面有很多源 `jsonl`
-- 比如当前有 6 个源 `jsonl`
+### 2.2 按簇切片后的输入
 
-这些是**聚类前**的原始数据集。
-
-### 第二层：按簇切片后的输入
-
-当你做完：
+在完成以下步骤后：
 
 1. 合并所有源 `jsonl`
-2. 对每行 `html` 统一布局聚类
+2. 对每行 `html` 执行统一布局聚类
 3. 按 `layout_cluster_id` 切片
 
-之后，才会得到：
+得到的输入形态将变为：
 
 - `ms_web_mma_union_cluster_0.jsonl`
 - `ms_web_mma_union_cluster_1.jsonl`
 - ...
 
-这里每个 `cluster_x.jsonl`：
-
-- 只对应一个 cluster
-- 但里面的数据行可能来自很多个源 `jsonl`
-
-所以：
-
-- 不是“每个源 `jsonl` 跑一次 schema / parser”
-- 而是“每个 **cluster** 跑一次 schema / parser”
+每个 `cluster_x.jsonl` 只对应一个 cluster，但其中的数据行可能来自多个源 `jsonl`。因此后续不是“每个源 `jsonl` 跑一次 schema / parser”，而是“每个 cluster 跑一次 schema / parser”。
 
 ---
 
-## 2.1 关键字段说明
+## 3. 关键字段说明
 
-下面这几个字段是整条链路里最重要的“串联键”，后面聚类、按簇抽取、回填时都会反复用到：
+下面这些字段是整条链路中的核心串联键：
 
 | 字段 | 含义 | 典型来源 | 主要用途 |
 |---|---|---|---|
-| `global_index` | 合并所有源 `jsonl` 后，为每一行分配的全局顺序号 | 业务层在合并多源 `jsonl` 时生成 | 作为最稳定的全局行索引，用于聚类结果和回填结果对齐 |
-| `source_name` | 当前记录来自哪个源文件名，例如 `20260310094859_...jsonl` | 从源 `jsonl` 路径提取 | 用于区分不同源文件，也用于最终按 `source_name` 分文件发布 |
-| `line_no` | 当前记录在该源 `jsonl` 文件中的行号 | 逐行读取源 `jsonl` 时生成 | 与 `source_name` 组合后可唯一定位源文件内的一行 |
-| `record_id` | 当前记录的业务主键，优先取 `track_id`，没有时再兜底生成 | 源数据中的 `track_id` 或业务层兜底逻辑 | 作为单行业务标识，也用于切片和解析结果映射 |
+| `global_index` | 合并所有源 `jsonl` 后为每一行分配的全局顺序号 | 业务层在合并多源 `jsonl` 时生成 | 作为全局行索引，用于聚类结果与回填结果对齐 |
+| `source_name` | 当前记录所属源文件名，例如 `20260310094859_...jsonl` | 从源 `jsonl` 路径提取 | 用于区分不同源文件，也用于后续按 `source_name` 分文件发布 |
+| `line_no` | 当前记录在源 `jsonl` 中的行号 | 逐行读取源 `jsonl` 时生成 | 与 `source_name` 组合后可唯一定位源文件内的一行 |
+| `record_id` | 当前记录的业务主键，优先取 `track_id`，缺失时使用兜底值 | 源数据中的 `track_id` 或业务层兜底逻辑 | 作为单行业务标识，也用于切片和解析结果映射 |
 
-可以把这四个字段理解成：
+可以将它们理解为：
 
 - `global_index`：全局唯一索引
 - `source_name + line_no`：源文件内唯一定位
 - `record_id`：业务主键
 
-后面不管是：
-
-- `cluster_list.jsonl`
-- 单簇 `cluster_x.jsonl`
-- `parsed_data`
-- 回填 payload
-
-本质上都要依赖这几个字段来把“同一条记录”串起来。
-
 ---
 
-## 3. `web2json` 的核心业务 API
+## 4. `web2json` 的公开 API 与业务包装函数
 
-`web2json-agent` 里真正需要老师看的业务接口就是这些：
+### 4.1 仓库现有公开 API
+
+`web2json-agent` 已提供的公开 API 包括：
 
 ```python
 from web2json import (
     Web2JsonConfig,
-    classify_crawl_jsonl_dir,
+    classify_crawl_jsonl_dir, (新加)
     extract_data_with_code,
     extract_schema,
     infer_code,
 )
 ```
 
-### 3.1 先明确：哪些是仓库现有公开 API，哪些是业务侧包装函数
-
-这里建议在讲解时把边界说清楚：
-
-#### 仓库现有的公开 API
-
-这些是 `web2json-agent` 本身已经提供的接口：
+这些 API 的职责如下：
 
 - `classify_crawl_jsonl_dir` (新加)
-- `extract_schema`
-- `infer_code`
-- `extract_data_with_code`
-
-它们都属于：
-
-- `from web2json import ...`
-
-这一层的现成能力。
-
-#### 业务侧包装函数
-
-下面这两个名字是为了讲清楚 `ms-web-mma` 这条业务链而抽象出来的包装函数：
-
-- `classify_from_crawl_html()`
-- `run_cluster_pipeline()`
-
-其中：
-
-- `classify_from_crawl_html()`
-  - 不是仓库原生公开 API
-  - 它是对 `classify_crawl_jsonl_dir()` 的一层业务包装
-  - 目的是把“多个源 jsonl 的 html 字段统一做布局聚类”这个业务语义讲清楚
-
-- `run_cluster_pipeline()`
-  - 也不是 `web2json` 仓库原生公开 API 名称
-  - 它是把：
-    - `extract_schema`
-    - `infer_code`
-    - `extract_data_with_code`
-    这三步串起来的一层业务包装
-
-
-**公开 API 是仓库已有能力，包装函数是你为了把 `ms-web-mma` 业务链讲清楚而组织出来的调用层。**
-
-其中语义可以这样讲：
-
-- `classify_crawl_jsonl_dir`
-  - 输入：一个目录下多个 crawl `jsonl`
-  - 行为：取每行 `html` 做统一布局聚类
-  - 输出：`cluster_list` + 按簇切片后的输入 `jsonl`
+  - 输入：目录下多个 crawl `jsonl`
+  - 行为：对每行 `html` 做统一布局聚类
+  - 输出：`cluster_list` 与按簇切片后的输入 `jsonl`
 
 - `extract_schema`
   - 输入：单个 cluster 的输入 `jsonl`
-  - 行为：学习该簇页面应该抽什么字段
   - 输出：该簇自己的 schema
 
 - `infer_code`
   - 输入：该簇 schema
-  - 行为：为该簇生成 parser code
-  - 输出：该簇自己的 parser
+  - 输出：该簇自己的 parser code
 
 - `extract_data_with_code`
   - 输入：该簇输入 `jsonl` + 该簇 parser
-  - 行为：批量解析该簇内全部页面
   - 输出：该簇的 `parsed_data`
+
+### 4.2 业务侧包装函数
+
+为表达 `ms-web-mma` 这条业务链，可以额外组织两层包装函数：
+
+- `classify_from_crawl_html()`
+- `run_cluster_pipeline()`
+
+这两个名称不是仓库现成 API，而是业务代码侧的调用层封装。
 
 ---
 
-## 4. 业务逻辑一：`classify_from_crawl_html()`
+## 5. 业务逻辑一：`classify_from_crawl_html()`
 
-“怎么从多个源 jsonl 走到 cluster”，重点看这一段。
+该函数用于表达“如何从多个源 `jsonl` 走到 cluster”。
 
-### 推荐写法：直接用 `classify_crawl_jsonl_dir`
+### 推荐写法：直接使用 `classify_crawl_jsonl_dir`
 
 ```python
 from web2json import Web2JsonConfig, classify_crawl_jsonl_dir
@@ -234,72 +176,204 @@ def classify_from_crawl_html(local_jsonl_dir: str, output_dir: str):
     )
 ```
 
-### 这段业务代码真正做了什么
-
-这段不是“按源文件逐个跑完整流水线”，而是：
-
-1. 把目录里多个源 `jsonl` 当成一个全集
-2. 对全集里每行的 `html` 做**一次统一布局聚类**
-3. 得到全局 `cluster_list`
-4. 再按 `layout_cluster_id` 切片
-
-所以这一步完成后，输入维度就从：
-
-- `source_name`
-
-变成：
-
-- `cluster_id`
-
----
-
-## 4.1 
-
+### 调用关系
 
 ```text
 classify_from_crawl_html()
     -> classify_crawl_jsonl_dir()
         -> _execute_crawl_layout_cluster()
-           -> cluster_html_layouts_optimized()
+           -> cluster_html_layouts_optimized() -- existing
 ```
 
-可以这样理解：
+各层职责如下：
 
 - `classify_from_crawl_html()`
-  - 面向业务代码的包装入口
+  - 业务代码的包装入口
   - 表达“从多个源 jsonl 的 html 字段做统一聚类”
 
 - `classify_crawl_jsonl_dir()`
-  - 面向外部 API 的目录级入口
-  - 负责发现目录下全部 `jsonl`、逐行读取、整理成统一 `line_metas`
+  - 公开 API 的目录级入口
+  - 负责发现目录下全部 `jsonl`、逐行读取并整理成统一 `line_metas`
 
 - `_execute_crawl_layout_cluster()`
-  - 真正的内部执行引擎
-  - 负责：
-    1. 提取布局特征
-    2. 调聚类器
-    3. 把标签映射回原始行
-    4. 写 `cluster_list.jsonl`
-    5. 写按簇切片的 `jsonl`
+  - 内部执行引擎
+  - 负责提取布局特征、调用聚类器、映射标签、生成 `cluster_list.jsonl` 和按簇切片
 
 - `cluster_html_layouts_optimized()`
-  - 真正执行“布局聚类算法”的底层函数
+  - 执行布局聚类算法的底层函数
   - 输入：一组 HTML 字符串
-  - 行为：
-    1. 基于 HTML 结构提取布局特征
-    2. 在特征空间中计算页面之间的相似度
-    3. 使用 DBSCAN / KNN 图近似等方式给每个页面分配 cluster label
-  - 输出：
-    - `labels`：每个页面的簇编号
-    - `sim_mat`：页面间相似度矩阵
-    - `clusters`：按簇分组后的页面集合
-  - “到底是谁在做页面布局聚类”，最底层答案就是：
-    - **`cluster_html_layouts_optimized()`**
+  - 输出：`labels`、`sim_mat`、`clusters`
 
-- **真正干活的是 `_execute_crawl_layout_cluster()`**
-- `classify_crawl_jsonl_dir()` 负责把“目录下多个源 jsonl”整理好，再把它们交给这个内部函数统一处理
+概括而言：
 
-### `_execute_crawl_layout_cluster()` 完整实现（来自 `web2json/simple.py`）
+**`classify_crawl_jsonl_dir()` 负责将多个源 `jsonl` 整理成统一输入；`_execute_crawl_layout_cluster()` 负责完成布局聚类、`cluster_list` 生成和按簇切片。**
+
+---
+
+## 6. 业务逻辑二：`run_cluster_pipeline()`
+
+该函数用于对单个 cluster 的输入 `jsonl` 执行完整抽取链路。
+
+```python
+import json
+from pathlib import Path
+from typing import Any, Dict, List
+
+from web2json import Web2JsonConfig, extract_schema, infer_code, extract_data_with_code
+
+
+def run_cluster_pipeline(
+    cluster_jsonl: Path,
+    output_root: Path,
+    iteration_rounds: int = 3,
+) -> Dict[str, Any]:
+    """
+    对单个 cluster 的输入 jsonl 执行：
+    1. extract_schema
+    2. infer_code
+    3. extract_data_with_code
+    """
+    cluster_name = cluster_jsonl.stem.replace("ms_web_mma_union_", "")
+
+    schema_result = extract_schema(
+        Web2JsonConfig(
+            name=f"{cluster_name}_schema",
+            html_path=str(cluster_jsonl),
+            output_path=str(output_root),
+            iteration_rounds=iteration_rounds,
+            save=["schema"],
+            crawl_html_field="html",
+            crawl_jsonl_id_field="record_id",
+        )
+    )
+
+    code_result = infer_code(
+        Web2JsonConfig(
+            name=f"{cluster_name}_code",
+            html_path=str(cluster_jsonl),
+            output_path=str(output_root),
+            schema=schema_result.final_schema,
+            save=["schema", "code"],
+            crawl_html_field="html",
+            crawl_jsonl_id_field="record_id",
+        )
+    )
+
+    # parser_code 中包含 XPath，先落成本地 .py 再传给 extract_data_with_code
+    parser_code_dir = output_root / "generated_parser_files"
+    parser_code_dir.mkdir(parents=True, exist_ok=True)
+    parser_code_path = parser_code_dir / f"{cluster_name}_parser.py"
+    parser_code_path.write_text(code_result.parser_code, encoding="utf-8")
+
+    parse_result = extract_data_with_code(
+        Web2JsonConfig(
+            name=f"{cluster_name}_data",
+            html_path=str(cluster_jsonl),
+            output_path=str(output_root),
+            parser_code=str(parser_code_path),
+            save=["data", "code"],
+            crawl_html_field="html",
+            crawl_jsonl_id_field="record_id",
+        )
+    )
+
+    return {
+        "cluster_name": cluster_name,
+        "schema": schema_result.final_schema,
+        "parser_code": code_result.parser_code,
+        "parsed_data": parse_result.parsed_data,
+    }
+```
+
+### 三个步骤的职责
+
+#### 第一步：`extract_schema`
+
+- 输入：单簇 `jsonl`
+- 作用：学习该簇页面应抽取哪些字段
+- 输出：该簇自己的 schema
+
+#### 第二步：`infer_code`
+
+- 输入：该簇 schema
+- 作用：基于 schema 为该簇生成 parser code
+- 输出：该簇自己的 parser
+
+#### 第三步：`extract_data_with_code`
+
+- 输入：该簇输入 `jsonl` + 该簇 parser
+- 作用：批量解析该簇内全部页面
+- 输出：该簇的 `parsed_data`
+
+### 为什么每个 cluster 都要独立运行
+
+因为每个 cluster 对应一类页面布局。不是所有 cluster 共用一套 schema / parser，而是：
+
+- `cluster_0` 有自己的一套 schema / parser
+- `cluster_1` 有自己的一套 schema / parser
+- `cluster_k` 同理
+
+如果一个 cluster 中混合了多个源 `jsonl` 的页面，只要这些页面布局相似，它们就应该放在同一个 cluster 输入文件中，共用这一簇的一套 schema / parser。因此这里的粒度是“每个 cluster 跑一次”，而不是“每个源 `jsonl` 各跑一次”。
+
+---
+
+## 7. 最简业务主线
+
+可以将整条主线压缩成下面这段：
+
+```python
+def main():
+    classify_result = classify_from_crawl_html(
+        local_jsonl_dir=".../ms-web-mma/jsonl/",
+        output_dir=".../output/ms-web-mma/v001/",
+    )
+
+    cluster_jsonl_files = [
+        "ms_web_mma_union_cluster_0.jsonl",
+        "ms_web_mma_union_cluster_1.jsonl",
+        "...",
+    ]
+
+    cluster_outputs = []
+    for cluster_jsonl in cluster_jsonl_files:
+        cluster_output = run_cluster_pipeline(
+            cluster_jsonl=Path(cluster_jsonl),
+            output_root=Path(".../output/ms-web-mma/v001/"),
+            iteration_rounds=3,
+        )
+        cluster_outputs.append(cluster_output)
+```
+
+该主线可以概括为：
+
+1. 多源 `jsonl`
+2. 统一布局聚类
+3. 按 cluster 切片
+4. 每个 cluster 各自执行：
+   - `extract_schema`
+   - `infer_code`
+   - `extract_data_with_code`
+
+---
+
+## 8. 结论
+
+1. 站点原始输入是多个源 `jsonl`
+2. 使用 `classify_crawl_jsonl_dir` 对所有行的 `html` 做统一布局聚类
+3. 聚类后按 `cluster_id` 切成多个 cluster 输入 `jsonl`
+4. 对每个 cluster 调用 `run_cluster_pipeline()`
+5. `run_cluster_pipeline()` 内部固定执行：
+   - `extract_schema`
+   - `infer_code`
+   - `extract_data_with_code`
+
+**多个源 `jsonl` 先统一聚类，再按 `cluster` 分别学习 schema、生成 parser，并执行批量解析。**
+
+---
+
+## 附录 A：`_execute_crawl_layout_cluster()` 的内部实现
+
+本附录保留 `web2json.simple` 中 `_execute_crawl_layout_cluster()` 的完整实现，以便在需要查看框架内部执行逻辑时参考。正文主线不依赖这一实现细节。
 
 ```python
 def _execute_crawl_layout_cluster(
@@ -505,224 +579,93 @@ def _execute_crawl_layout_cluster(
         noise_files=noise_files,
         cluster_count=cluster_count,
     )
-```
-
-如果只抓一句话总结它的职责，可以说：
-
-**`classify_crawl_jsonl_dir()` 负责把“多个源 jsonl”整理成统一输入，`_execute_crawl_layout_cluster()` 负责真正完成布局聚类、`cluster_list` 生成和按簇切片。**
-
----
-
-## 5. 业务逻辑二：`run_cluster_pipeline()`
-
-这一段是最核心的业务代码。
-
-```python
-import json
-from pathlib import Path
-from typing import Any, Dict, List
-
-from web2json import Web2JsonConfig, extract_schema, infer_code, extract_data_with_code
 
 
-def run_cluster_pipeline(
-    cluster_jsonl: Path,
-    output_root: Path,
-    iteration_rounds: int = 3,
-) -> Dict[str, Any]:
+def classify_crawl_jsonl(
+    config: Web2JsonConfig,
+    jsonl_path: Optional[str] = None,
+    *,
+    html_field: Optional[str] = None,
+    record_id_field: Optional[str] = None,
+    annotate_slice_rows: bool = False,
+) -> ClusterResult:
+    """API：对 crawl JSONL 按布局聚类，并按簇写出切片 JSONL（不物化 HTML 到磁盘）。
+
+    从每行 JSON 的 ``html``（或 ``html_field``）读入 HTML，布局特征与
+    ``classify_html_dir`` 相同。输出文件名形如
+    ``{jsonl 主名}_cluster_0.jsonl``、``{主名}_noise.jsonl``。
+
+    - ``config.html_path`` 或参数 ``jsonl_path``：指向 ``.jsonl`` 文件。
+    - ``config.save`` 含 ``report`` 时写 ``cluster_report.json`` / ``cluster_info.txt`` /
+      ``cluster_list.jsonl``；含 ``jsonl`` 时写各簇切片（推荐 ``['report', 'jsonl']``）。
+
+    ``ClusterResult.clusters`` 的值为 **record_id** 列表（``track_id`` 或 ``line_{n}``），
+    不是文件路径。
     """
-    对单个 cluster 的输入 jsonl 执行：
-    1. extract_schema
-    2. infer_code
-    3. extract_data_with_code
-    """
-    cluster_name = cluster_jsonl.stem.replace("ms_web_mma_union_", "")
+    from web2json.tools.crawl_jsonl import load_crawl_line_metas_for_file
 
-    schema_result = extract_schema(
-        Web2JsonConfig(
-            name=f"{cluster_name}_schema",
-            html_path=str(cluster_jsonl),           # 输入是 cluster 内的 crawl jsonl
-            output_path=str(output_root),
-            iteration_rounds=iteration_rounds,
-            save=["schema"],
-            crawl_html_field="html",
-            crawl_jsonl_id_field="record_id",
-        )
+    _setup_logger()
+    path = Path(jsonl_path or config.html_path)
+    if not path.is_file() or path.suffix.lower() != ".jsonl":
+        raise ValueError("classify_crawl_jsonl 需要指向一个 .jsonl 文件")
+
+    hf = html_field if html_field is not None else getattr(config, "crawl_html_field", "html")
+    rid_f = (
+        record_id_field
+        if record_id_field is not None
+        else getattr(config, "crawl_jsonl_id_field", "track_id")
     )
 
-    code_result = infer_code(
-        Web2JsonConfig(
-            name=f"{cluster_name}_code",
-            html_path=str(cluster_jsonl),
-            output_path=str(output_root),
-            schema=schema_result.final_schema,
-            save=["schema", "code"],
-            crawl_html_field="html",
-            crawl_jsonl_id_field="record_id",
-        )
-    )
+    logger.info(f"[API] classify_crawl_jsonl - 从 JSONL 读 html 并布局聚类")
+    logger.info(f"  JSONL: {path}")
+    logger.info(f"  html 字段: {hf}, id 字段: {rid_f}")
+    if config.should_save():
+        logger.info(f"  保存内容: {', '.join(config.save)}")
+        logger.info(f"  输出路径: {config.get_full_output_path()}")
 
-    # parser_code 中包含 XPath，先落成本地 .py 再传给 extract_data_with_code
-    parser_code_dir = output_root / "generated_parser_files"
-    parser_code_dir.mkdir(parents=True, exist_ok=True)
-    parser_code_path = parser_code_dir / f"{cluster_name}_parser.py"
-    parser_code_path.write_text(code_result.parser_code, encoding="utf-8")
-
-    parse_result = extract_data_with_code(
-        Web2JsonConfig(
-            name=f"{cluster_name}_data",
-            html_path=str(cluster_jsonl),
-            output_path=str(output_root),
-            parser_code=str(parser_code_path),
-            save=["data", "code"],
-            crawl_html_field="html",
-            crawl_jsonl_id_field="record_id",
-        )
-    )
-
-    return {
-        "cluster_name": cluster_name,
-        "schema": schema_result.final_schema,
-        "parser_code": code_result.parser_code,
-        "parsed_data": parse_result.parsed_data,
+    line_metas = load_crawl_line_metas_for_file(path, html_field=hf, record_id_field=rid_f)
+    report_extra = {
+        "jsonl_path": str(path.resolve()),
+        "mode": "single_file",
     }
-```
-
-#### 第一步：`extract_schema`
-
-- 输入：单簇 `jsonl`
-- 作用：学习该簇页面应抽取哪些字段
-- 输出：该簇自己的 schema
-
-#### 第二步：`infer_code`
-
-- 输入：该簇 schema
-- 作用：基于 schema 为该簇生成 parser code
-- 输出：该簇自己的 parser
-
-#### 第三步：`extract_data_with_code`
-
-- 输入：该簇输入 `jsonl` + 该簇 parser
-- 作用：批量解析该簇内全部页面
-- 输出：该簇的 `parsed_data`
-
-### 为什么每个 cluster 都要跑一遍
-
-因为每个 cluster 代表一类页面布局。
-
-所以不是：
-
-- 所有 cluster 共用一个 schema / parser
-
-而是：
-
-- `cluster_0` 有自己的一套 schema / parser
-- `cluster_1` 也有自己的一套 schema / parser
-- `cluster_k` 同理
-
-### 一个 cluster 里如果混合了多个源 jsonl 呢
-
-这正是设计目标。
-
-例如 `cluster_0.jsonl` 里：
-
-- 可能有来自 `a.jsonl` 的页面
-- 也有来自 `b.jsonl` 的页面
-- 还可能有来自 `c.jsonl` 的页面
-
-但只要它们布局相似，就应该：
-
-- 放进同一个 cluster 输入文件
-- 共用这一簇的一套 schema / parser
-
-所以这里是：
-
-- **每个 cluster 跑一次**
-- 不是每个源 `jsonl` 各跑一次
-
----
-
-## 6. 最简业务主线，可以压缩成下面这条主线：
-
-```python
-def main():
-    # 输入：一个目录，里面有多个源 jsonl
-    classify_result = classify_from_crawl_html(
-        local_jsonl_dir=".../ms-web-mma/jsonl/",
-        output_dir=".../output/ms-web-mma/v001/",
+    return _execute_crawl_layout_cluster(
+        line_metas,
+        config,
+        output_stem=path.stem,
+        hf=hf,
+        rid_f=rid_f,
+        report_extra=report_extra,
+        annotate_slice_rows=annotate_slice_rows,
     )
-
-    # 输出：多个 cluster jsonl
-    cluster_jsonl_files = [
-        "ms_web_mma_union_cluster_0.jsonl",
-        "ms_web_mma_union_cluster_1.jsonl",
-        "...",
-    ]
-
-    cluster_outputs = []
-    for cluster_jsonl in cluster_jsonl_files:
-        cluster_output = run_cluster_pipeline(
-            cluster_jsonl=Path(cluster_jsonl),
-            output_root=Path(".../output/ms-web-mma/v001/"),
-            iteration_rounds=3,
-        )
-        cluster_outputs.append(cluster_output)
 ```
 
-这条主线就是：
-
-1. 多源 jsonl
-2. 统一布局聚类
-3. 按 cluster 切片
-4. 每个 cluster 各自跑：
-   - `extract_schema`
-   - `infer_code`
-   - `extract_data_with_code`
-
 ---
 
-## 7. 结论
+## 附录 B：与 `code-clean/` 的集成方式
 
-1. 站点原始输入是多个源 `jsonl`
-2. 先用 `classify_crawl_jsonl_dir` 对所有行的 `html` 做统一布局聚类
-3. 聚类后按 `cluster_id` 切成多个 cluster 输入 `jsonl`
-4. 对每个 cluster 调 `run_cluster_pipeline()`
-5. `run_cluster_pipeline()` 内部固定执行：
-   - `extract_schema`
-   - `infer_code`
-   - `extract_data_with_code`
+本附录说明如何将上述核心逻辑与 `code-clean/` 的 S3 目录级读写方式结合。该部分属于外围工程集成，不属于正文中的核心聚类与按簇抽取逻辑。
 
+### B.1 整体思路
 
-**多个源 jsonl 先统一聚类，再按 cluster 分别学习 schema、生成 parser、批量解析。**
-
----
-
-## 8. 如何和 `code-clean/` 结合
-
-### 8.1 整体思路
-
-把整条链分成 4 段：
+整条链可分成 4 段：
 
 1. 用 `code-clean` 风格从 S3 目录发现并读取源 `jsonl`
 2. 调 `web2json` 完成：
    - 统一布局聚类
    - 按 cluster 切片
    - 每簇 `extract_schema / infer_code / extract_data_with_code`
-3. 把抽取结果回填到原始行
-4. 再用 `code-clean` 风格把结果写回 S3
-
+3. 将抽取结果回填到原始行
+4. 再用 `code-clean` 风格将结果写回 S3
 
 ```text
 code-clean 负责 S3 读写
 web2json 负责 html -> cluster -> schema -> parser -> parsed_data
-业务代码负责把两边接起来
+业务代码负责把两者串联并完成回填
 ```
 
----
+### B.2 用 `code-clean` 读取 S3 folder 下的源 `jsonl`
 
-### 8.2 用 `code-clean` 读取 S3 folder 下的源 `jsonl`
-
-`code-clean/vector_clustering/semdedup/common.py` 里已经有现成的 S3 JSONL 读写函数：
+`code-clean/vector_clustering/semdedup/common.py` 中已提供 S3 JSONL 读写函数：
 
 ```188:241:/home/luqing/Downloads/v2/code-clean/vector_clustering/semdedup/common.py
 def read_s3_jsonl(file_path):
@@ -732,12 +675,7 @@ def write_s3_jsonl(file_path, data):
     ...
 ```
 
-如果要从一个 S3 folder 读取多份源 `jsonl`，业务代码层通常需要先做两件事：
-
-1. 列出这个 folder 下所有 `*.jsonl`
-2. 对每个文件调用 `read_s3_jsonl(...)`
-
-伪代码可以写成：
+典型业务代码可写为：
 
 ```python
 from typing import Any, Dict, List
@@ -779,26 +717,7 @@ def load_rows_from_s3_folder(input_dir: str) -> List[Dict[str, Any]]:
     return rows
 ```
 
-这里的重点不是具体 S3 SDK，而是：
-
-- `code-clean` 负责把 S3 上的多份 `jsonl` 读成 Python dict 列表
-- 业务层负责补 `global_index / source_name / line_no / record_id`
-
----
-
-### 8.3 把这些行交给 `web2json`
-
-接下来，业务层需要把“从 S3 读出来的原始行”变成 `web2json` 能处理的输入。
-
-做法通常是：
-
-1. 先把多份源 `jsonl` 落到一个本地 staging 目录
-2. 直接调用：
-   - `classify_crawl_jsonl_dir`
-3. 拿到 cluster 切片后，对每个 cluster 调：
-   - `run_cluster_pipeline()`
-
-最小主线：
+### B.3 将这些行交给 `web2json`
 
 ```python
 def business_pipeline(input_dir_s3: str, work_dir: str):
@@ -825,22 +744,7 @@ def business_pipeline(input_dir_s3: str, work_dir: str):
     return rows, cluster_outputs
 ```
 
-这里的关键边界是：
-
-- `code-clean` 负责把多份 S3 `jsonl` 变成本地可处理输入
-- `web2json` 负责：
-  - `html` 的布局聚类
-  - schema 学习
-  - parser 生成
-  - 批量解析
-
----
-
-### 8.4 回填到原始行
-
-当 `cluster_outputs` 出来以后，业务层负责把解析结果再拼回原始行。
-
-也就是：
+### B.4 回填到原始行
 
 ```python
 def backfill_rows(
@@ -874,25 +778,7 @@ def backfill_rows(
     return list(row_by_key.values())
 ```
 
-这一步就是把：
-
-- 原始 crawl 行
-- cluster 内解析结果
-
-重新拼成最终 payload。
-
----
-
-### 8.5 再用 `code-clean` 风格写回 S3
-
-回填完成后，再按 `source_name` 分桶，重新写回 S3。
-
-如果沿用当前约定：
-
-- 一个源 `jsonl`
-- 对应一个清洗后的 `<source_name>.jsonl.gz`
-
-那业务层可以先按 `source_name` 分组：
+### B.5 再用 `code-clean` 风格写回 S3
 
 ```python
 from collections import defaultdict
@@ -903,29 +789,13 @@ def group_rows_by_source_name(rows: List[Dict[str, Any]]) -> Dict[str, List[Dict
     for row in rows:
         grouped[row["source_name"]].append(row)
     return grouped
-```
 
-然后每组写一份本地 `jsonl` / `jsonl.gz`，再上传：
 
-```python
 def upload_grouped_rows(grouped_rows: Dict[str, List[Dict[str, Any]]], output_base: str):
     for source_name, rows in grouped_rows.items():
         local_jsonl = write_local_jsonl_file(source_name, rows)
         local_gz = gzip_local_jsonl(local_jsonl)
-
-        # 两种风格都可以：
-        # 1) 走 code-clean 的 write_s3_jsonl
-        # 2) 走你当前已验证通过的 put_object(CheckSumAlgorithm="SHA256")
         upload_gz_to_s3(local_gz, f"{output_base}/{source_name}.gz")
 ```
 
-这里的重点是：
-
-- 读 S3、写 S3 可以尽量复用 `code-clean` 的方式
-- 中间“聚类 + 按簇抽取”这一段交给 `web2json`
-
----
-
-**`code-clean` 负责目录级 S3 读写，`web2json` 负责 html 级聚类和按簇抽取，业务层负责把两者用 `global_index/source_name/line_no/record_id` 串起来并完成回填。**
-
-
+**`code-clean` 负责目录级 S3 读写，`web2json` 负责 html 级聚类和按簇抽取，业务代码负责使用 `global_index/source_name/line_no/record_id` 将两者串联并完成回填。**
